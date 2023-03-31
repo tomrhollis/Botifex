@@ -2,7 +2,6 @@
 using Discord.Net;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -35,14 +34,14 @@ namespace Botifex
             DiscordClient.Ready += OnConnect;
         }
 
-        public override async Task StartAsync(CancellationToken cancellationToken)
+        public override async Task StartAsync()
         {
             log.LogDebug("StartAsync has been called.");
             await DiscordClient.LoginAsync(TokenType.Bot, config.GetValue<string>("DiscordBotToken"));
             await DiscordClient.StartAsync();
         }
 
-        public override async Task StopAsync(CancellationToken cancellationToken)
+        public override async Task StopAsync()
         {
             await Log("Awoooooo......", LogLevel.Information);
             await DiscordClient.StopAsync();
@@ -51,13 +50,13 @@ namespace Botifex
         internal override async void OnStarted()
         {
             log.LogDebug("OnStarted has been called.");
-            if (!String.IsNullOrEmpty(config.GetValue<string>("DiscordBotToken"))) await StartAsync(CancellationToken.None);
+            if (!String.IsNullOrEmpty(config.GetValue<string>("DiscordBotToken"))) await StartAsync();
         }
 
         internal override async void OnStopping()
         {
             log.LogDebug("OnStopping has been called.");
-            await StopAsync(CancellationToken.None);
+            await StopAsync();
         }
 
         internal override void OnStopped()
@@ -75,8 +74,10 @@ namespace Botifex
 
             await LoadCommands();
 
-            /* add handlers
+            DiscordClient.MessageReceived += MessageHandler;
             DiscordClient.SlashCommandExecuted += SlashCommandHandler;
+            
+            /* add handlers
             DiscordClient.ButtonExecuted += ButtonHandler;
             DiscordClient.SelectMenuExecuted += SelectMenuHandler;
             */
@@ -101,7 +102,7 @@ namespace Botifex
 
         internal override async Task LoadCommands()
         {
-            DiscordClient.GetGlobalApplicationCommandsAsync().Result.ToList().ForEach(c => { c.DeleteAsync(); });
+            //DiscordClient.GetGlobalApplicationCommandsAsync().Result.ToList().ForEach(c => { c.DeleteAsync(); }); // only uncomment to fix problems
             botifex.Commands.ForEach(async command => { await LoadCommand(command); });
         }
 
@@ -111,6 +112,7 @@ namespace Botifex
             try
             {
                 await DiscordClient.CreateGlobalApplicationCommandAsync(newCommand);
+                await Log($"Creating Discord command {command.Name}");
             }
             catch (HttpException ex)
             {
@@ -118,13 +120,21 @@ namespace Botifex
             }
         }
 
+        private async Task MessageHandler(SocketMessage message)
+        {
+            if (message.Author.IsBot) return;
+            await Log("Received message: " + message.Content, LogLevel.Debug);
+            FinalizeMessageReceived(new MessageReceivedEventArgs(message.Content));
+        }
 
-
-        /*
         private async Task SlashCommandHandler(SocketSlashCommand command)
         {
-            Log(LogLevel.Debug, "Received request for /" + command.Data.Name);
+            await Log("Received request for /" + command.Data.Name, LogLevel.Debug);
+            FinalizeCommandReceived(new CommandReceivedEventArgs(command.CommandName, "Not implemented"));
         }
+
+        /*
+
 
         private async Task ButtonHandler(SocketMessageComponent component)
         {

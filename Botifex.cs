@@ -1,10 +1,6 @@
-﻿using Botifex.Properties;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 
 namespace Botifex
 {
@@ -14,6 +10,9 @@ namespace Botifex
         private IHostApplicationLifetime appLifetime;
         private IConfiguration config;
         private ILogger<Botifex> log;
+
+        private EventHandler<CommandReceivedEventArgs> onCommand;
+        private EventHandler<MessageReceivedEventArgs> onText;
 
         private Dictionary<string, SlashCommand> commands = new Dictionary<string, SlashCommand>();
         public List<SlashCommand> Commands { get => commands.Values.ToList(); }
@@ -34,20 +33,32 @@ namespace Botifex
 
             appLifetime.ApplicationStarted.Register(OnStarted);
             appLifetime.ApplicationStopping.Register(OnStopping);
-            appLifetime.ApplicationStopped.Register(OnStopped);            
+            appLifetime.ApplicationStopped.Register(OnStopped);
         }
 
         private void OnStarted()
         {
             log.LogDebug("OnStarted has been called.");
-            discord.RegisterSelf(this);
+            discord.RegisterSelf(this);            
             telegram.RegisterSelf(this);
+
+            if (onCommand != null) 
+            {
+                discord.OnCommandReceived += onCommand;
+                telegram.OnCommandReceived += onCommand;
+            }
+
+            if (onText != null)
+            {
+                discord.OnMessageReceived += onText;
+                telegram.OnMessageReceived += onText;
+            }
         }
 
         private void OnStopping()
         {
             LogAll("Botifex is shutting down").Wait();
-            log.LogDebug("OnStopping has been called.");            
+            log.LogDebug("OnStopping has been called.");
         }
 
         private void OnStopped()
@@ -67,7 +78,6 @@ namespace Botifex
 
         private async Task LogAll(string message)
         {
-            
             await discord.Log(message);
             await telegram.Log(message);
         }
@@ -76,7 +86,7 @@ namespace Botifex
         {
             try
             {
-                SlashCommand[] incomingCommands = config.GetSection("Botifex").GetSection("Commands").Get<SlashCommand[]>();
+                SlashCommand[] incomingCommands = config.GetSection("Commands").Get<SlashCommand[]>();
 
                 foreach (SlashCommand command in incomingCommands)
                 {
@@ -92,6 +102,16 @@ namespace Botifex
             {
                 log.LogError($"{e.Message}");
             }
+        }
+
+        public void RegisterTextHandler(EventHandler<MessageReceivedEventArgs> handler)
+        {
+            onText = handler;
+        }
+
+        public void RegisterCommandHandler(EventHandler<CommandReceivedEventArgs> handler)
+        {
+            onCommand = handler;
         }
     }
 }

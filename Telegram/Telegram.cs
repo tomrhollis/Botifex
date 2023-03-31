@@ -1,5 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Discord.WebSocket;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -9,7 +9,8 @@ namespace Botifex
 {
     internal class Telegram : Messenger, ITelegram
     {
-        public override bool IsReady => Bot is not null;
+        private bool isReady = false;
+        public override bool IsReady { get => isReady && Bot is not null; protected private set=>isReady=value; }
         public TelegramBotClient Bot { get; private set; }
         public ChatId LogChannel { get; private set; }
 
@@ -26,7 +27,7 @@ namespace Botifex
             appLifetime.ApplicationStopped.Register(OnStopped);            
         }
 
-        public override async Task StartAsync(CancellationToken cancellationToken)
+        public override async Task StartAsync()
         {
             log.LogDebug("StartAsync has been called.");
             Bot = new TelegramBotClient(config.GetValue<string>("TelegramBotToken"));
@@ -37,26 +38,30 @@ namespace Botifex
             Bot.StartReceiving(updateHandler: OnUpdateReceived,
                                pollingErrorHandler: OnErrorReceived);
 
+            IsReady=true;
+
             long logChannelId = config.GetValue<long>("TelegramLogChannel");
             if (logChannelId != 0) LogChannel = new ChatId(logChannelId);
             await Log("Yip Yip", LogLevel.Information);
         }
 
-        public override async Task StopAsync(CancellationToken cancellationToken)
+        public override async Task StopAsync()
         {
             await Log("Awoooooo......", LogLevel.Information);
+            IsReady = false;            
             log.LogDebug("StopAsync has been called.");
         }
 
         internal override async void OnStarted()
         {
             log.LogDebug("OnStarted has been called.");
-            if (!String.IsNullOrEmpty(config.GetValue<string>("TelegramBotToken"))) await StartAsync(CancellationToken.None);
+            if (!String.IsNullOrEmpty(config.GetValue<string>("TelegramBotToken"))) await StartAsync();
         }
 
         internal override async void OnStopping()
         {
             log.LogDebug("OnStopping has been called.");
+            await StopAsync();
         }
 
         internal override void OnStopped()
@@ -77,7 +82,8 @@ namespace Botifex
 
         private async Task OnUpdateReceived(ITelegramBotClient bot, Update data, CancellationToken cToken)
         {
-            log.LogDebug($"[{data.Message.Chat.Id} - {data.Message.Chat.FirstName} {data.Message.Chat.LastName}] {data.Message.Text}");
+            log.LogDebug($"[{data.Message?.Chat.Id} - {data.Message?.Chat.FirstName} {data.Message?.Chat.LastName}] {data.Message?.Text}");
+            await MessageHandler(data);           
         }
 
         internal override async Task LoadCommands()
@@ -90,10 +96,24 @@ namespace Botifex
                 {
                     Command = c.Name,
                     Description = c.Description
-                });                
+                });
+                await Log($"Creating Telegram command {c.Name}");
             }
             
             await Bot.SetMyCommandsAsync(telegramCommands);
         }
+
+        private async Task MessageHandler(Update data)
+        {
+            await Log("Received message: " + data.Message?.Text, LogLevel.Debug);
+            FinalizeMessageReceived(new MessageReceivedEventArgs($"{data.Message?.Text} - Type: {data.Type} / {data.Message?.Type}"));
+        }
+
+        private async Task SlashCommandHandler(Update data)
+        {
+            await Log("Received request for /" + data.Message?.Text, LogLevel.Debug);
+            FinalizeCommandReceived(new CommandReceivedEventArgs($"{data.Type} / {data.Message?.Type}", $"{data.Message?.Text}"));
+        }
+
     }
 }
