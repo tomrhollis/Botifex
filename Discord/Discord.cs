@@ -10,7 +10,7 @@ namespace Botifex
     public class Discord : Messenger, IDiscord
     {
         public DiscordSocketClient DiscordClient { get; set; }
-        public ITextChannel LogChannel { get; set; }
+        public ITextChannel? LogChannel { get; set; }
         internal override int MAX_TEXT_LENGTH { get => 2000; }
 
         public override bool IsReady
@@ -34,29 +34,19 @@ namespace Botifex
             DiscordClient.Ready += OnConnect;
         }
 
-        public override async Task StartAsync()
-        {
-            log.LogDebug("StartAsync has been called.");
-            await DiscordClient.LoginAsync(TokenType.Bot, config.GetValue<string>("DiscordBotToken"));
-            await DiscordClient.StartAsync();
-        }
-
-        public override async Task StopAsync()
-        {
-            await Log("Awoooooo......", LogLevel.Information);
-            await DiscordClient.StopAsync();
-        }
-
         internal override async void OnStarted()
         {
             log.LogDebug("OnStarted has been called.");
-            if (!String.IsNullOrEmpty(config.GetValue<string>("DiscordBotToken"))) await StartAsync();
+            if (String.IsNullOrEmpty(config.GetValue<string>("DiscordBotToken"))) return;
+            await DiscordClient.LoginAsync(TokenType.Bot, config.GetValue<string>("DiscordBotToken"));
+            await DiscordClient.StartAsync();
         }
 
         internal override async void OnStopping()
         {
             log.LogDebug("OnStopping has been called.");
-            await StopAsync();
+            await Log("Awoooooo......", LogLevel.Information);
+            await DiscordClient.StopAsync();
         }
 
         internal override void OnStopped()
@@ -130,7 +120,7 @@ namespace Botifex
         private async Task SlashCommandHandler(SocketSlashCommand command)
         {
             await Log("Received request for /" + command.Data.Name, LogLevel.Debug);
-            FinalizeCommandReceived(new CommandReceivedEventArgs(command.CommandName, "Not implemented"));
+            FinalizeCommandReceived(new CommandReceivedEventArgs(botifex.GetCommand(command.CommandName), "Not implemented"));
         }
 
         /*

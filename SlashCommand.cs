@@ -35,5 +35,11 @@ namespace Botifex
         public SlashCommand()
         {
         }
+
+        public SlashCommand(SlashCommand original)
+        {
+            Name = original.Name;
+            Description = original.Description;
+        }
     }
 }

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Botifex
 {
-    public class Botifex : IBotifex, IHostedService
+    public class Botifex : IBotifex
     {
         private IHost host;
         private IHostApplicationLifetime appLifetime;
@@ -66,16 +66,6 @@ namespace Botifex
             log.LogDebug("OnStopped has been called.");
         }
 
-        public async Task StartAsync(CancellationToken cancellationToken)
-        {
-            log.LogDebug("StartAsync has been called.");
-        }
-
-        public async Task StopAsync(CancellationToken cancellationToken)
-        {
-            log.LogDebug("StopAsync has been called.");
-        }
-
         private async Task LogAll(string message)
         {
             await discord.Log(message);
@@ -103,6 +93,10 @@ namespace Botifex
                 log.LogError($"{e.Message}");
             }
         }
+
+        public SlashCommand GetCommand(string name) => new SlashCommand(commands[name]);
+
+        public bool HasCommand(string name) => commands.ContainsKey(name);
 
         public void RegisterTextHandler(EventHandler<MessageReceivedEventArgs> handler)
         {

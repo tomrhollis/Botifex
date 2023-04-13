@@ -32,10 +32,6 @@ namespace Botifex
         }
         internal abstract Task Log(string m, LogLevel i);
 
-        public abstract Task StartAsync();
-
-        public abstract Task StopAsync();
-
         internal abstract void OnStarted();
         internal abstract void OnStopping();
         internal abstract void OnStopped();
@@ -81,9 +77,9 @@ namespace Botifex
 
     public class CommandReceivedEventArgs : EventArgs
     {
-        public string Command { get; set; }
+        public SlashCommand Command { get; set; }
         public string Options { get; set; }
-        public CommandReceivedEventArgs(string command, string options)
+        public CommandReceivedEventArgs(SlashCommand command, string options)
         {
             Command = command;
             Options = options;
