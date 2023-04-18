@@ -1,12 +1,12 @@
 ﻿using Discord;
 using Discord.WebSocket;
 
-namespace Botifex
+namespace Botifex.Services
 {
     public interface IDiscord
     {
         internal DiscordSocketClient DiscordClient { get; }
-        internal ITextChannel LogChannel { get; }
+        internal ITextChannel? LogChannel { get; }
 
 
         internal Task OnConnect();/*

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Botifex.Services;
 
 namespace Botifex
 {
@@ -6,9 +7,10 @@ namespace Botifex
     {
         public static IServiceCollection AddMyClasses(this IServiceCollection services)
         {
-            services.AddSingleton<IDiscord, Discord>()
-                    .AddSingleton<ITelegram, Telegram>()
-                    .AddSingleton<IBotifex, Botifex>();
+            services.AddSingleton<IDiscord, DiscordService>()
+                    .AddSingleton<ITelegram, TelegramService>()
+                    .AddSingleton<IBotifex, Botifex>()
+                    .AddSingleton<ICommandLibrary, CommandLibrary>();
             return services;
         }
     }

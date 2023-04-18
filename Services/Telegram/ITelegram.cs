@@ -1,6 +1,6 @@
 ﻿
 
-namespace Botifex
+namespace Botifex.Services
 {
     public interface ITelegram
     {

@@ -1,63 +1,60 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Botifex.Models;
+using Botifex.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Botifex
 {
-    public class Botifex : IBotifex
+    public class Botifex : IBotifex 
     {
-        private IHost host;
         private IHostApplicationLifetime appLifetime;
         private IConfiguration config;
         private ILogger<Botifex> log;
+        private ICommandLibrary commandLibrary;
 
-        private EventHandler<CommandReceivedEventArgs> onCommand;
-        private EventHandler<MessageReceivedEventArgs> onText;
+        private EventHandler<InteractionReceivedEventArgs> onCommand;
+        private EventHandler<InteractionReceivedEventArgs> onText;
+        private EventHandler<EventArgs> onReady;
 
-        private Dictionary<string, SlashCommand> commands = new Dictionary<string, SlashCommand>();
-        public List<SlashCommand> Commands { get => commands.Values.ToList(); }
+        private Messenger[] messengers;
+        private List<BotifexUser> knownUsers = new List<BotifexUser>();
 
-        private Discord discord;
-        private Telegram telegram;
-
-        public Botifex(IHost host, IHostApplicationLifetime lifetime, IConfiguration cfg, ILogger<Botifex> log, IDiscord dc, ITelegram tg)
+        public Botifex(IHostApplicationLifetime lifetime, IConfiguration cfg, ILogger<Botifex> log, ICommandLibrary lib, IDiscord dc, ITelegram tg)
         {
-            this.host = host;
             appLifetime = lifetime;
             config = cfg;
             this.log = log;
-            discord = (Discord)dc;
-            telegram = (Telegram)tg;
-
-            LoadCommands();
+            commandLibrary = lib;
+            messengers = new Messenger[] { (Services.DiscordService)dc, (Services.TelegramService)tg };
 
             appLifetime.ApplicationStarted.Register(OnStarted);
             appLifetime.ApplicationStopping.Register(OnStopping);
             appLifetime.ApplicationStopped.Register(OnStopped);
+
+            onReady += DoReadyTasks;
+
+            if (onReady != null)
+                foreach (var messenger in messengers)
+                    messenger.OnFirstReady += onReady;
         }
 
         private void OnStarted()
         {
             log.LogDebug("OnStarted has been called.");
-            discord.RegisterSelf(this);            
-            telegram.RegisterSelf(this);
 
-            if (onCommand != null) 
-            {
-                discord.OnCommandReceived += onCommand;
-                telegram.OnCommandReceived += onCommand;
-            }
+            if (onCommand != null)
+                foreach (var messenger in messengers)
+                    messenger.OnCommandReceived += onCommand;
 
             if (onText != null)
-            {
-                discord.OnMessageReceived += onText;
-                telegram.OnMessageReceived += onText;
-            }
+                foreach (var messenger in messengers)
+                    messenger.OnMessageReceived += onText;
         }
 
         private void OnStopping()
         {
-            LogAll("Botifex is shutting down").Wait();
+            log.LogDebug("Botifex is shutting down");
             log.LogDebug("OnStopping has been called.");
         }
 
@@ -66,46 +63,49 @@ namespace Botifex
             log.LogDebug("OnStopped has been called.");
         }
 
-        private async Task LogAll(string message)
+        public async Task LogAll(string message)
         {
-            await discord.Log(message);
-            await telegram.Log(message);
-        }
+            await Task.WhenAll(messengers.Select((m)=>m.Log(message, LogLevel.Information)));
+        }        
 
-        private void LoadCommands()
-        {
-            try
-            {
-                SlashCommand[] incomingCommands = config.GetSection("Commands").Get<SlashCommand[]>();
-
-                foreach (SlashCommand command in incomingCommands)
-                {
-                    if (commands.ContainsKey(command.Name)) log.LogWarning($"Attempted to add {command.Name} more than once, ignored");
-                    else
-                    {
-                        log.LogDebug("Command found: " + command.Name);
-                        commands.Add(command.Name, command);
-                    }
-                }
-            }
-            catch (ArgumentException e)
-            {
-                log.LogError($"{e.Message}");
-            }
-        }
-
-        public SlashCommand GetCommand(string name) => new SlashCommand(commands[name]);
-
-        public bool HasCommand(string name) => commands.ContainsKey(name);
-
-        public void RegisterTextHandler(EventHandler<MessageReceivedEventArgs> handler)
+        public void RegisterTextHandler(EventHandler<InteractionReceivedEventArgs> handler)
         {
             onText = handler;
         }
 
-        public void RegisterCommandHandler(EventHandler<CommandReceivedEventArgs> handler)
+        public void RegisterCommandHandler(EventHandler<InteractionReceivedEventArgs> handler)
         {
             onCommand = handler;
+        }
+
+        public void RegisterReadyHandler(EventHandler<EventArgs> handler)
+        {
+            onReady = handler;
+        }
+
+        public void AddCommand(SlashCommand command)
+        {
+            commandLibrary.RegisterCommand(command);
+        }
+
+        private async void DoReadyTasks(object sender, EventArgs e)
+        {
+            await PushCommands((Messenger)sender);
+        }
+
+        public async Task PushCommands(Messenger m)
+        {
+            await m.LoadCommands();
+        }
+
+        public async Task SendStatusUpdate(string message)
+        {
+            await Task.WhenAll(messengers.Select((m) => m.CreateOrUpdateStatus(message)));
+        }
+
+        public BotifexUser? GetUser(IMessengerUser messengerAccount)
+        {
+            return knownUsers.Find((u) => u.Accounts.Contains(messengerAccount));
         }
     }
 }

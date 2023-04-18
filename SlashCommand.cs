@@ -1,10 +1,11 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Botifex
 {
     public class SlashCommand
     {
-        private string name;
+        private string name = String.Empty;
         // max length 32, only digits numbers and underscore
         public string Name 
         { 
@@ -18,7 +19,7 @@ namespace Botifex
             }
         }
 
-        private string description;
+        private string description = String.Empty;
         // max length 200
         public string Description
         { 
@@ -32,14 +33,11 @@ namespace Botifex
             }
         }
 
+        public List<InteractionOption> Options { get; set; } = new List<InteractionOption>();
+
         public SlashCommand()
         {
         }
 
-        public SlashCommand(SlashCommand original)
-        {
-            Name = original.Name;
-            Description = original.Description;
-        }
     }
 }
