@@ -14,7 +14,7 @@ namespace Botifex.Services
         internal event EventHandler<EventArgs>? OnFirstReady;
         internal event EventHandler<InteractionReceivedEventArgs>? OnMessageReceived;
         internal event EventHandler<InteractionReceivedEventArgs>? OnCommandReceived;
-        protected private IInteractionFactory interactionFactory;
+        protected private IInteractionFactory? interactionFactory;
 
         internal abstract int MAX_TEXT_LENGTH { get; }
 

@@ -14,10 +14,11 @@ namespace Botifex.Services
         {
             initialCommand = (SocketSlashCommand?)source.Message;
             BotifexCommand = command;
-            
-            if(command.Options.Count > 0 && initialCommand is not null && initialCommand.Data.Options.Count > 0)
+            isTyping = initialCommand?.Channel.EnterTypingState();
+
+            if (command.Options.Count > 0 && initialCommand is not null && initialCommand.Data.Options.Count > 0)
                 foreach (var option in command.Options)
-                    Responses.Add(option.Name.ToLower(), initialCommand?.Data.Options.FirstOrDefault(o => o.Name.ToLower() == option.Name.ToLower())?.Value.ToString() ?? string.Empty);
+                    CommandFields.Add(option.Name.ToLower(), initialCommand?.Data.Options.FirstOrDefault(o => o.Name.ToLower() == option.Name.ToLower())?.Value.ToString() ?? string.Empty);
 
         }
 
@@ -26,9 +27,5 @@ namespace Botifex.Services
             await ((DiscordService)Source.Messenger).CommandReply(this, text);
         }
 
-        internal override void End()
-        {
-            throw new NotImplementedException();
-        }
     }
 }

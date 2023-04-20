@@ -10,7 +10,8 @@ namespace Botifex.Services
         public SlashCommand BotifexCommand { get; set; }        
 
         private Message? initialCommand;
-        internal bool IsReady { get; private set; } = false;
+        public bool IsReady { get; private set; } = false;
+        private string WaitingField { get; set; } = string.Empty;
 
         internal TelegramCommandInteraction(InteractionSource source, SlashCommand command) : base(source)
         {
@@ -26,19 +27,41 @@ namespace Botifex.Services
 
                 // if it's there, use it as the command data
                 if (findData is not null && findData.Groups?.Count > 1)
-                    Responses.Add(BotifexCommand.Options[0].Name, findData.Groups[2].Value);
+                    CommandFields.Add(BotifexCommand.Options[0].Name, findData.Groups[2].Value);
             }
 
+            IsReady = CheckReady(requiredOptions);                      
+        }
+
+        private bool CheckReady(List<InteractionOption> requiredOptions)
+        {
             bool tentativeReady = true;
-            foreach(InteractionOption option in requiredOptions)
+            foreach (InteractionOption option in requiredOptions)
             {
-                if (!Responses.ContainsKey(option.Name))
+                if (!CommandFields.ContainsKey(option.Name))
                 {
                     tentativeReady = false;
+                    WaitingField = option.Name;
+                    FollowUp($"What is {option.Description}?").Wait();
                     break;
                 }
             }
-            IsReady = tentativeReady;
+            return tentativeReady;
+        }
+
+        internal async Task FollowUp(string text)
+        {
+            await ((TelegramService)Source.Messenger).Reply(this, text);
+        }
+
+        internal void ReadResponse(Message response)
+        {
+            if (String.IsNullOrEmpty(response.Text) || String.IsNullOrEmpty(WaitingField))
+                throw new ArgumentNullException();
+
+            CommandFields.Add(WaitingField, response.Text);
+            
+            IsReady = CheckReady(BotifexCommand.Options.FindAll(o => o.Required));
         }
     }
 }

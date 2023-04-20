@@ -4,14 +4,15 @@
     {
         public Guid Id { get; private set; }
         internal InteractionSource Source { get; set; }
-        public virtual Dictionary<string, string> Responses { get; set; }
-        internal event EventHandler<EventArgs>? OnMoreInfo;
+        public virtual Dictionary<string, string> CommandFields { get; set; }
+
+        internal object? BotMessage;
 
         internal Interaction(InteractionSource source)
         {
             Id = new Guid();
             Source = source;
-            Responses = new Dictionary<string, string>();
+            CommandFields = new Dictionary<string, string>();
         }
 
         public virtual async Task Reply(string text)

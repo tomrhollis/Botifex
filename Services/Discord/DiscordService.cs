@@ -153,7 +153,7 @@ namespace Botifex.Services
             // if it's not from a DM make sure it has a mention of the bot otherwise abort (requires the intent for bots to see contents of messages in group chats)
             if(message.Channel.GetChannelType() != ChannelType.DM && !message.MentionedUsers.Contains<SocketUser>(DiscordClient.CurrentUser)) return Task.CompletedTask;
 
-            DiscordInteraction? interaction = (DiscordInteraction?)interactionFactory.CreateInteraction(new InteractionSource(new DiscordUser(message.Author), this, message));
+            DiscordInteraction? interaction = (DiscordInteraction?)interactionFactory?.CreateInteraction(new InteractionSource(new DiscordUser(message.Author), this, message));
             if (interaction is null) return Task.CompletedTask;
 
             FinalizeMessageReceived(new InteractionReceivedEventArgs(interaction));
@@ -163,7 +163,7 @@ namespace Botifex.Services
         private async Task SlashCommandHandler(SocketSlashCommand command)
         {
             DiscordInteraction? interaction = 
-                (DiscordInteraction?)interactionFactory.CreateInteraction(new InteractionSource(new DiscordUser(command.User), this, command));
+                (DiscordInteraction?)interactionFactory?.CreateInteraction(new InteractionSource(new DiscordUser(command.User), this, command));
 
             if (interaction is null)
             {
@@ -171,7 +171,7 @@ namespace Botifex.Services
                 return;
             }
 
-            await command.DeferAsync();
+            await command.DeferAsync(ephemeral: command.Channel.GetChannelType().GetValueOrDefault() != ChannelType.DM);
             FinalizeCommandReceived(new InteractionReceivedEventArgs(interaction));
         }
 

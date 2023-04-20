@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Discord;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
@@ -12,10 +13,11 @@ namespace Botifex.Services
         private bool isReady = false;
         public override bool IsReady { get => isReady && Bot is not null; protected private set=>isReady=value; }
         public TelegramBotClient Bot { get; private set; }
-        public ChatId LogChannel { get; private set; }
-        public ChatId StatusChannel { get; private set; }
+        public ChatId? LogChannel { get; private set; }
+        private Message? LogMessage { get; set; }
+        public ChatId? StatusChannel { get; private set; }
         private int StatusMessageId { get; set; } = 0;
-        //private List<TelegramInteraction> activeInteractions = new List<TelegramInteraction>();
+        private List<TelegramInteraction> activeInteractions = new List<TelegramInteraction>();
         
         internal override int MAX_TEXT_LENGTH { get => 4096; }
         private ILogger<TelegramService> log;
@@ -29,31 +31,31 @@ namespace Botifex.Services
             
             appLifetime.ApplicationStarted.Register(OnStarted);
             appLifetime.ApplicationStopping.Register(OnStopping);
-            appLifetime.ApplicationStopped.Register(OnStopped);            
-        }
+            appLifetime.ApplicationStopped.Register(OnStopped);
 
-        internal override async void OnStarted()
-        {
-            log.LogDebug("OnStarted has been called.");
             if (String.IsNullOrEmpty(config.GetValue<string>("TelegramBotToken"))) return;
-            
             Bot = new TelegramBotClient(config.GetValue<string>("TelegramBotToken")!);
-
-            // start listening
-            Bot.StartReceiving(updateHandler: OnUpdateReceived,
-                               pollingErrorHandler: OnErrorReceived);
 
             long logChannelId = config.GetValue<long>("TelegramLogChannel");
             if (logChannelId != 0) LogChannel = new ChatId(logChannelId);
 
             long statusChannelId = config.GetValue<long>("TelegramStatusChannel");
             if (statusChannelId != 0) StatusChannel = new ChatId(statusChannelId);
+        }
+
+        internal override async void OnStarted()
+        {
+            log.LogDebug("OnStarted has been called.");
+
+            // start listening
+            Bot.StartReceiving(updateHandler: OnUpdateReceived,
+                               pollingErrorHandler: OnErrorReceived);
 
             BotUsername = (await Bot.GetMeAsync()).Username ?? "";
             
             IsReady = true;
             FinalizeFirstReady(EventArgs.Empty);
-            await Log($"Yip Yip I am {BotUsername}", LogLevel.Information);
+            //await Log($"Yip Yip I am {BotUsername}", LogLevel.Information);
         }
 
         internal override async void OnStopping()
@@ -70,8 +72,13 @@ namespace Botifex.Services
 
         internal override async Task Log(string m, LogLevel i = LogLevel.Information)
         {
+            // log to console
             log.Log(i, m);
-            if (IsReady && LogChannel is not null) await Bot.SendTextMessageAsync(LogChannel, m);
+
+            // if we can log to the log channel
+            if (IsReady && LogChannel is not null)
+                // append to an existing message to save new message limit, make new one if there isn't one yet
+                LogMessage = (LogMessage is not null) ? await AppendText(LogMessage, m) : await SendNewMessage(LogChannel, m);
         }
 
         private Task OnErrorReceived(ITelegramBotClient bot, Exception ex, CancellationToken cToken)
@@ -94,23 +101,36 @@ namespace Botifex.Services
             TelegramUser user = new TelegramUser(data.Message.From);
             Chat chat = data.Message.Chat;
 
-            // if this isn't a command and there's an existing interaction already, pass it over to that
-            /*
-            TelegramInteraction? existingInteraction = activeInteractions.Find(i => i.Source.User == user && ((Message?)i.Source.Message)?.Chat == chat);
-            if (existingInteraction is not null && !String.IsNullOrEmpty((data.Message?.Text ?? "").Trim()) && data.Message?.Text.Trim()[0] != '/')
+            // if there's an existing command waiting for response already, see if this is related to that       
+            TelegramInteraction? existingInteraction = activeInteractions.Find(i => ((TelegramUser)i.Source.User).Account.Id == user.Account.Id && ((Message?)i.Source.Message)?.Chat.Id == chat.Id);
+            if (existingInteraction is TelegramCommandInteraction && !String.IsNullOrEmpty((data.Message?.Text ?? "").Trim()))
             {
-                existingInteraction.FollowUp(data);
-                return Task.CompletedTask;
-            }
-            else existingInteraction?.End();*/
+                // if this is not a command, give it to the command interaction as a response
+                if (data.Message?.Text.Trim()[0] != '/')
+                {
+                    ((TelegramCommandInteraction)existingInteraction).ReadResponse(data.Message!);
+
+                    if (((TelegramCommandInteraction)existingInteraction).IsReady)
+                        FinalizeCommandReceived(new InteractionReceivedEventArgs(existingInteraction));
+
+                    await Bot.DeleteMessageAsync(new ChatId(chat.Id), data.Message!.MessageId);
+                    return;
+                }
+                // otherwise end the previous interaction so the rest of this code can start a new one
+                else
+                {
+                    activeInteractions.Remove(existingInteraction);
+                    existingInteraction.End();
+                }
+            }                
 
             InteractionSource source = new InteractionSource(new TelegramUser(data.Message!.From), this, data.Message);
             try
             {
-                TelegramInteraction? newInteraction = (TelegramInteraction?)interactionFactory.CreateInteraction(source);
+                TelegramInteraction? newInteraction = (TelegramInteraction?)interactionFactory?.CreateInteraction(source);
                 if (newInteraction is null) return;
 
-                //activeInteractions.Add(newInteraction);
+                activeInteractions.Add(newInteraction);
 
                 if (newInteraction is TelegramCommandInteraction && ((TelegramCommandInteraction)newInteraction).IsReady)
                     FinalizeCommandReceived(new InteractionReceivedEventArgs(newInteraction));
@@ -149,18 +169,42 @@ namespace Botifex.Services
             if (!IsReady || StatusChannel is null) return;
 
             if (StatusMessageId == 0) 
-                StatusMessageId = (await Bot.SendTextMessageAsync(StatusChannel, statusText)).MessageId;
+                StatusMessageId = (await SendNewMessage(StatusChannel, statusText)).MessageId;
 
             else if (StatusChannel.Identifier is not null) 
-                await Bot.EditMessageTextAsync(new ChatId((long)StatusChannel.Identifier), StatusMessageId, statusText);
+                await Bot.EditMessageTextAsync(StatusChannel, StatusMessageId, Truncate(statusText));
         }
 
         internal override async Task Reply(Interaction interaction, string text)
         {
             if (interaction.Source.Message is null) return;
 
-            Message message = (Message)interaction.Source.Message;
-            await Bot.SendTextMessageAsync(message.Chat.Id, text, replyToMessageId: message.MessageId);
+            Message userMessage = (Message)interaction.Source.Message;
+
+            if (interaction.BotMessage is not null)
+            {
+                Message botMessage = (Message)interaction.BotMessage;
+                interaction.BotMessage = Bot.EditMessageTextAsync(new ChatId(botMessage.Chat.Id), botMessage.MessageId, Truncate(text));
+            }
+                
+            else
+                interaction.BotMessage = await SendNewMessage(userMessage.Chat.Id, text, replyToMessageId: userMessage.MessageId);
         }
+
+        // separating this out now because it'll all have to go through an API queue eventually
+        private async Task<Message> SendNewMessage(ChatId chatId, string text, int? replyToMessageId = null) 
+        {
+            return await Bot.SendTextMessageAsync(chatId, Truncate(text), replyToMessageId: replyToMessageId);
+        }
+
+        private async Task<Message> AppendText(Message existingMessage, string text)
+        {
+            if ((existingMessage.Text?.Length + text.Length) < (MAX_TEXT_LENGTH - 2))
+                return await Bot.EditMessageTextAsync(new ChatId(existingMessage.Chat.Id), existingMessage.MessageId, existingMessage.Text + "\n" + text);
+
+            else
+                return await SendNewMessage(new ChatId(existingMessage.Chat.Id), text);
+        }
+
     }
 }

@@ -3,7 +3,7 @@
     public interface ICommandInteraction
     {
         public SlashCommand BotifexCommand { get; set; }
-        public Dictionary<string, string> Responses { get; }
+        public Dictionary<string, string> CommandFields { get; }
 
         public Task Reply(string text);
     }

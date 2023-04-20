@@ -13,8 +13,8 @@ namespace Botifex
         private ILogger<Botifex> log;
         private ICommandLibrary commandLibrary;
 
-        private EventHandler<InteractionReceivedEventArgs> onCommand;
-        private EventHandler<InteractionReceivedEventArgs> onText;
+        private EventHandler<InteractionReceivedEventArgs>? onCommand;
+        private EventHandler<InteractionReceivedEventArgs>? onText;
         private EventHandler<EventArgs> onReady;
 
         private Messenger[] messengers;
