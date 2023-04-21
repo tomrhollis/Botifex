@@ -184,7 +184,7 @@ namespace Botifex.Services
             if (interaction.BotMessage is not null)
             {
                 Message botMessage = (Message)interaction.BotMessage;
-                interaction.BotMessage = Bot.EditMessageTextAsync(new ChatId(botMessage.Chat.Id), botMessage.MessageId, Truncate(text));
+                interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage.Chat.Id), botMessage.MessageId, Truncate(text));
             }
                 
             else
