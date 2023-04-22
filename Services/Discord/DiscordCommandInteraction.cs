@@ -22,10 +22,9 @@ namespace Botifex.Services
 
         }
 
-        public override async Task Reply(string text)
+        public override async Task Reply(string text, Dictionary<string, string>? options= null)
         {
-            await ((DiscordService)Source.Messenger).CommandReply(this, text);
+            await ((DiscordService)Source.Messenger).CommandReply(this, text, options);
         }
-
     }
 }

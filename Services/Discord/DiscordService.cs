@@ -175,7 +175,7 @@ namespace Botifex.Services
             FinalizeCommandReceived(new InteractionReceivedEventArgs(interaction));
         }
 
-        internal override async Task Reply(Interaction interaction, string text)
+        internal override async Task Reply(Interaction interaction, string? text = null, Dictionary<string, string>? options = null)
         {
             if (interaction.Source.Message is null) return;
             
@@ -184,15 +184,18 @@ namespace Botifex.Services
             await message.Channel.SendMessageAsync(text, messageReference: new MessageReference(message.Id));           
         }
 
-        internal async Task CommandReply(Interaction interaction, string text)
+        internal async Task CommandReply(Interaction interaction, string? text = null, Dictionary<string, string>? options = null)
         {
             if(interaction.Source.Message is null) return;
 
             SocketSlashCommand command = (SocketSlashCommand)interaction.Source.Message;
 
+            EmbedBuilder embedBuilder = new();
+
             await command.ModifyOriginalResponseAsync(m =>
             {
                 m.Content = text;
+                
             });
         }
 

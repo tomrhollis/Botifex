@@ -4,7 +4,7 @@
     {
         public string Text { get; }
 
-        public Task Reply(string text);
+        public Task Reply(string text, Dictionary<string, string>? options = null);
 
     }
 }

@@ -33,7 +33,7 @@ namespace Botifex
             }
         }
 
-        public List<InteractionOption> Options { get; set; } = new List<InteractionOption>();
+        public List<CommandField> Options { get; set; } = new List<CommandField>();
 
         public SlashCommand()
         {

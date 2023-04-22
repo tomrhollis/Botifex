@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Botifex.Services
 {
@@ -116,8 +118,8 @@ namespace Botifex.Services
                     await Bot.DeleteMessageAsync(new ChatId(chat.Id), data.Message!.MessageId);
                     return;
                 }
-                // otherwise end the previous interaction so the rest of this code can start a new one
-                else
+                // otherwise end the previous incomplete interaction so the rest of this code can start a new one
+                else if(!((TelegramCommandInteraction)existingInteraction).IsReady)
                 {
                     activeInteractions.Remove(existingInteraction);
                     existingInteraction.End();
@@ -175,26 +177,49 @@ namespace Botifex.Services
                 await Bot.EditMessageTextAsync(StatusChannel, StatusMessageId, Truncate(statusText));
         }
 
-        internal override async Task Reply(Interaction interaction, string text)
+        internal override async Task Reply(Interaction interaction, string text, Dictionary<string, string>? options = null)
         {
             if (interaction.Source.Message is null) return;
 
             Message userMessage = (Message)interaction.Source.Message;
 
-            if (interaction.BotMessage is not null)
+            List<KeyboardButton> buttons = new List<KeyboardButton>();
+            ReplyKeyboardMarkup? keyboard = null;
+            if (options is not null && options.Any())
             {
-                Message botMessage = (Message)interaction.BotMessage;
-                interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage.Chat.Id), botMessage.MessageId, Truncate(text));
+                for(int i=0; i<options.Count; i++)
+                {
+                    buttons.Add(new KeyboardButton($"{i+1}"));
+                    text += $"\n{i+1}: {options[options.Keys.ToArray()[i]]}";
+                }
+                keyboard = new ReplyKeyboardMarkup(buttons);
+                keyboard.ResizeKeyboard = true;
+                keyboard.Selective = (userMessage.Chat.Type == Telegram.Bot.Types.Enums.ChatType.Private
+                                      || userMessage.Chat.Type == Telegram.Bot.Types.Enums.ChatType.Sender);
+                keyboard.OneTimeKeyboard = true;
             }
-                
+
+            Message? botMessage = (Message?)interaction.BotMessage;
+
+            // if we're sending a keyboard with this, we have to start fresh. can't edit a keyboard into an existing message with this library
+            if (keyboard is not null && botMessage is not null)
+            {
+                await Bot.DeleteMessageAsync(new ChatId(botMessage.Chat.Id), botMessage.MessageId);
+                interaction.BotMessage = null;
+            }
+
+            if (interaction.BotMessage is not null)
+            {                
+                interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId, Truncate(text));
+            }                
             else
-                interaction.BotMessage = await SendNewMessage(userMessage.Chat.Id, text, replyToMessageId: userMessage.MessageId);
+                interaction.BotMessage = await SendNewMessage(userMessage.Chat.Id, text, replyToMessageId: userMessage.MessageId, markup: keyboard);
         }
 
         // separating this out now because it'll all have to go through an API queue eventually
-        private async Task<Message> SendNewMessage(ChatId chatId, string text, int? replyToMessageId = null) 
+        private async Task<Message> SendNewMessage(ChatId chatId, string text, int? replyToMessageId = null, ReplyKeyboardMarkup? markup = null) 
         {
-            return await Bot.SendTextMessageAsync(chatId, Truncate(text), replyToMessageId: replyToMessageId);
+            return await Bot.SendTextMessageAsync(chatId, Truncate(text), replyToMessageId: replyToMessageId, replyMarkup: markup);
         }
 
         private async Task<Message> AppendText(Message existingMessage, string text)

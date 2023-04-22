@@ -43,7 +43,7 @@ namespace Botifex.Services
         internal abstract Task CreateOrUpdateStatus(string s);
         internal virtual string Truncate(string text) => (text.Length > (MAX_TEXT_LENGTH - 5) ? text.Substring(0, MAX_TEXT_LENGTH - 5) + "..." : text);
 
-        internal abstract Task Reply(Interaction interaction, string text);
+        internal abstract Task Reply(Interaction interaction, string text, Dictionary<string, string>? options);
 
         internal virtual void FinalizeMessageReceived(InteractionReceivedEventArgs e)
         {

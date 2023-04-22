@@ -17,7 +17,7 @@ namespace Botifex.Services
         {
             initialCommand = (Message?)source.Message;
             BotifexCommand = command;
-            List<InteractionOption> requiredOptions = BotifexCommand.Options.FindAll(o => o.Required);
+            List<CommandField> requiredOptions = BotifexCommand.Options.FindAll(o => o.Required);
 
             string commandText = initialCommand?.Text?.Trim() ?? string.Empty;
 
@@ -33,10 +33,10 @@ namespace Botifex.Services
             IsReady = CheckReady(requiredOptions);                      
         }
 
-        private bool CheckReady(List<InteractionOption> requiredOptions)
+        private bool CheckReady(List<CommandField> requiredOptions)
         {
             bool tentativeReady = true;
-            foreach (InteractionOption option in requiredOptions)
+            foreach (CommandField option in requiredOptions)
             {
                 if (!CommandFields.ContainsKey(option.Name))
                 {

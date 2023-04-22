@@ -1,6 +1,6 @@
 ﻿namespace Botifex
 {
-    public struct InteractionOption
+    public struct CommandField
     {
         public string Name;
         public string Description;
