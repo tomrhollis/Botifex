@@ -4,6 +4,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Botifex.Services
 {
@@ -14,7 +15,6 @@ namespace Botifex.Services
         public ITextChannel? StatusChannel { get; set; }
         internal override int MAX_TEXT_LENGTH { get => 2000; }
         private ulong StatusMessageId { get; set; } = 0;
-        private List<DiscordInteraction> activeInteractions = new List<DiscordInteraction>();
         
 
         public override bool IsReady
@@ -180,23 +180,56 @@ namespace Botifex.Services
             if (interaction.Source.Message is null) return;
             
             SocketMessage message = (SocketMessage)interaction.Source.Message;
+            MessageComponent? buttonComponent = null;
+            if (options is not null && options.Count > 0)
+            {
+                var componentBuilder = new ComponentBuilder();
+                buttonComponent = BuildButtonComponent(options);
+                text = AppendButtonDescriptors(text, options);
+            }
 
-            await message.Channel.SendMessageAsync(text, messageReference: new MessageReference(message.Id));           
+            await message.Channel.SendMessageAsync(text, messageReference: new MessageReference(message.Id), components: buttonComponent);           
         }
 
         internal async Task CommandReply(Interaction interaction, string? text = null, Dictionary<string, string>? options = null)
         {
             if(interaction.Source.Message is null) return;
 
-            SocketSlashCommand command = (SocketSlashCommand)interaction.Source.Message;
-
-            EmbedBuilder embedBuilder = new();
+            SocketSlashCommand command = (SocketSlashCommand)interaction.Source.Message;                   
 
             await command.ModifyOriginalResponseAsync(m =>
-            {
-                m.Content = text;
-                
+            {                
+                if (options is not null && options.Count > 0)
+                {
+                    var componentBuilder = new ComponentBuilder();
+                    m.Components = BuildButtonComponent(options);
+                    text = AppendButtonDescriptors(text, options);
+                }
+
+                if (!String.IsNullOrEmpty(text)) m.Content = Truncate(text);
             });
+        }
+
+        private MessageComponent BuildButtonComponent(Dictionary<string,string> options)
+        {
+            var componentBuilder = new ComponentBuilder();
+
+            for(int i =0; i<options.Count; i++)
+            {
+                componentBuilder.WithButton(ButtonBuilder.CreatePrimaryButton($"{i}", options.Keys.ToArray()[i]));
+            }
+
+            return componentBuilder.Build();
+        }
+
+        private string AppendButtonDescriptors(string? text, Dictionary<string, string> options)
+        {
+            text = text ?? "";
+            for (int i = 0; i < options.Count; i++)
+            {
+                text += $"\n{i}] {options[options.Keys.ToArray()[i]]}";
+            }
+            return text.Trim();
         }
 
         /*

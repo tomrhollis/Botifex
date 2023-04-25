@@ -57,7 +57,7 @@ namespace Botifex.Services
             
             IsReady = true;
             FinalizeFirstReady(EventArgs.Empty);
-            //await Log($"Yip Yip I am {BotUsername}", LogLevel.Information);
+            await Log($"Yip Yip", LogLevel.Information);
         }
 
         internal override async void OnStopping()

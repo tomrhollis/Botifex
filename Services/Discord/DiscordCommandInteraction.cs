@@ -25,6 +25,7 @@ namespace Botifex.Services
         public override async Task Reply(string text, Dictionary<string, string>? options= null)
         {
             await ((DiscordService)Source.Messenger).CommandReply(this, text, options);
+            isTyping.Dispose();
         }
     }
 }
