@@ -9,6 +9,7 @@ namespace Botifex
         
         public void RegisterCommandHandler(EventHandler<InteractionReceivedEventArgs> handler);
         public void RegisterTextHandler(EventHandler<InteractionReceivedEventArgs> handler);
+        Task SendOneTimeStatusUpdate(string message, bool notification = false);
         public Task SendStatusUpdate(string message);
     }
 }

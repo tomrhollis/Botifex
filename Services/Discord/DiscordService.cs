@@ -4,6 +4,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Reactive;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace Botifex.Services
@@ -144,6 +145,15 @@ namespace Botifex.Services
                     m.Content = statusText;
                 });
         }
+
+        internal override async Task SendOneTimeStatus(string statusText, bool notification = false)
+        {
+            if (!IsReady || StatusChannel is null) return;
+
+            if (notification) statusText += "\n@here";
+            await StatusChannel.SendMessageAsync(Truncate(statusText));
+        }
+                    
 
         private Task MessageHandler(SocketMessage message)
         {

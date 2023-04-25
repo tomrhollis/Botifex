@@ -103,6 +103,11 @@ namespace Botifex
             await Task.WhenAll(messengers.Select((m) => m.CreateOrUpdateStatus(message)));
         }
 
+        public async Task SendOneTimeStatusUpdate(string message, bool notification = false)
+        {
+            await Task.WhenAll(messengers.Select((m) => m.SendOneTimeStatus(message, notification)));
+        }
+
         public BotifexUser? GetUser(IMessengerUser messengerAccount)
         {
             return knownUsers.Find((u) => u.Accounts.Contains(messengerAccount));

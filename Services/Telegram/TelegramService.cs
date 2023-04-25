@@ -18,7 +18,8 @@ namespace Botifex.Services
         public ChatId? LogChannel { get; private set; }
         private Message? LogMessage { get; set; }
         public ChatId? StatusChannel { get; private set; }
-        private int StatusMessageId { get; set; } = 0;
+        private int OngoingStatusMessageId { get; set; } = 0;
+
         private List<TelegramInteraction> activeInteractions = new List<TelegramInteraction>();
         
         internal override int MAX_TEXT_LENGTH { get => 4096; }
@@ -60,10 +61,11 @@ namespace Botifex.Services
             await Log($"Yip Yip", LogLevel.Information);
         }
 
-        internal override async void OnStopping()
+        internal override void OnStopping()
         {
             log.LogDebug("OnStopping has been called.");
-            await Log("Awoooooo......", LogLevel.Information);
+
+            Log("Awoooooo......", LogLevel.Information).Wait();
             IsReady = false;
         }
 
@@ -170,16 +172,30 @@ namespace Botifex.Services
         {
             if (!IsReady || StatusChannel is null) return;
 
-            if (StatusMessageId == 0) 
-                StatusMessageId = (await SendNewMessage(StatusChannel, statusText)).MessageId;
+            if (OngoingStatusMessageId == 0)
+                OngoingStatusMessageId = (await SendNewMessage(StatusChannel, statusText)).MessageId;
 
-            else if (StatusChannel.Identifier is not null) 
-                await Bot.EditMessageTextAsync(StatusChannel, StatusMessageId, Truncate(statusText));
+            else if (StatusChannel.Identifier is not null)
+                await Bot.EditMessageTextAsync(StatusChannel, OngoingStatusMessageId, Truncate(statusText));
+        }
+
+        internal override async Task SendOneTimeStatus(string statusText, bool notification = false)
+        {
+            if (!IsReady || StatusChannel is null) return;
+
+            int messageId = (await SendNewMessage(StatusChannel, statusText)).MessageId;
+
+            if (notification)
+            {
+                await Bot.PinChatMessageAsync(StatusChannel, messageId, disableNotification: false);
+                Thread.Sleep(3000);
+                await Bot.UnpinChatMessageAsync(StatusChannel, messageId);
+            }
         }
 
         internal override async Task Reply(Interaction interaction, string text, Dictionary<string, string>? options = null)
         {
-            if (interaction.Source.Message is null) return;
+            if (!IsReady || interaction.Source.Message is null) return;
 
             Message userMessage = (Message)interaction.Source.Message;
 
@@ -230,6 +246,5 @@ namespace Botifex.Services
             else
                 return await SendNewMessage(new ChatId(existingMessage.Chat.Id), text);
         }
-
     }
 }
