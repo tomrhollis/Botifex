@@ -4,7 +4,9 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Net.WebSockets;
 using System.Reactive;
+using System.Text.RegularExpressions;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace Botifex.Services
@@ -16,7 +18,8 @@ namespace Botifex.Services
         public ITextChannel? StatusChannel { get; set; }
         internal override int MAX_TEXT_LENGTH { get => 2000; }
         private ulong StatusMessageId { get; set; } = 0;
-        
+
+        private List<ulong> adminIds = new List<ulong>();
 
         public override bool IsReady
         {
@@ -35,7 +38,7 @@ namespace Botifex.Services
             appLifetime.ApplicationStopping.Register(OnStopping);
             appLifetime.ApplicationStopped.Register(OnStopped);
 
-            DiscordClient = new DiscordSocketClient();
+            DiscordClient = new DiscordSocketClient(new DiscordSocketConfig() { AlwaysDownloadUsers = true });
             DiscordClient.Log += DiscordLog;
             DiscordClient.Ready += OnConnect;
         }
@@ -71,6 +74,8 @@ namespace Botifex.Services
                 StatusChannel = (ITextChannel)await DiscordClient.GetChannelAsync(ulong.Parse(config.GetValue<string>("DiscordStatusChannel")!));
             }
             await Log("Yip Yip", LogLevel.Information);
+
+            LoadAdminIds(config?.GetValue<string[]>("DiscordAdminAllowlist"));
             FinalizeFirstReady(EventArgs.Empty);
 
             DiscordClient.MessageReceived += MessageHandler;
@@ -89,23 +94,53 @@ namespace Botifex.Services
 
         internal override async Task Log(string m, LogLevel i = LogLevel.Information)
         {
-            log.Log(i, m);
+            log.Log(i, "Discord: "+ m);
 #if !DEBUG
             if(i == LogLevel.Debug) return;
 #endif
             if (IsReady && LogChannel is not null)
             {
-                await LogChannel.SendMessageAsync($"[{i}] {Truncate(m)}");                
+                await LogChannel.SendMessageAsync(Truncate($"[{i}] {m}"));
             }
+        }
+
+        private void LoadAdminIds(string[]? usernames)
+        {
+            if (usernames is null || usernames.Length == 0) return;
+
+            List<SocketUser> adminUsers = new List<SocketUser>();
+
+            foreach (string username in usernames)
+            {
+                if (!Regex.Match(username, "^(?!(discordtag|here|everyone)).[^\\@\\#\\:]{2,32}#[\\d]{4}$").Success)
+                    throw new ArgumentException($"{username} is not a proper Discord username");
+
+                Match splitName = Regex.Match(username, "^(.*)#(.*)$");
+                SocketUser adminUser = DiscordClient.GetUser(splitName.Groups[1].Value, splitName.Groups[2].Value);
+                
+                // if discord couldn't find this user, ignore and move on                
+                if (adminUser is null)
+                    continue;
+                
+                adminUsers.Add(adminUser);
+            }   
+            adminIds = (adminUsers.Count == 0) ? new List<ulong>() : adminUsers.Select(u=>u.Id).ToList();
         }
 
         internal override async Task LoadCommands()
         {
             //DiscordClient.GetGlobalApplicationCommandsAsync().Result.ToList().ForEach(c => { c.DeleteAsync(); }); // only uncomment to fix problems
-            List<SlashCommandProperties> discordSlashCommands = new List<SlashCommandProperties>();
-            
+            List<SlashCommandProperties> discordSlashCommands = new List<SlashCommandProperties>();            
+
             foreach(var command in  commandLibrary.Commands)
+            {
+                if(command.AdminOnly && adminIds.Count == 0)
+                {
+                    await Log($"Cannot add admin only command {command.Name} -- no valid admin users specified", LogLevel.Warning);
+                    continue;
+                }
                 discordSlashCommands.Add(BuildCommand(command));
+            }                
 
             try
             {
@@ -127,6 +162,11 @@ namespace Botifex.Services
                 {
                     newCommand.AddOption(option.Name, ApplicationCommandOptionType.String, option.Description, option.Required);
                 }
+                newCommand.WithDefaultPermission(!botifexCommand.AdminOnly);
+                newCommand.WithDMPermission(!botifexCommand.AdminOnly);
+
+                if (botifexCommand.AdminOnly)
+                    newCommand.WithDefaultMemberPermissions(GuildPermission.ManageEvents);
             }
             return newCommand.Build();
         }
@@ -172,8 +212,9 @@ namespace Botifex.Services
 
         private async Task SlashCommandHandler(SocketSlashCommand command)
         {
-            DiscordInteraction? interaction = 
-                (DiscordInteraction?)interactionFactory?.CreateInteraction(new InteractionSource(new DiscordUser(command.User), this, command));
+            DiscordCommandInteraction? interaction = 
+                (DiscordCommandInteraction?)interactionFactory?.CreateInteraction(new InteractionSource(new DiscordUser(command.User), this, command));
+            bool isEphemeral = command.Channel.GetChannelType().GetValueOrDefault() != ChannelType.DM;
 
             if (interaction is null)
             {
@@ -181,7 +222,18 @@ namespace Botifex.Services
                 return;
             }
 
-            await command.DeferAsync(ephemeral: command.Channel.GetChannelType().GetValueOrDefault() != ChannelType.DM);
+            // if it's admin only, reject if it isn't from a proper source
+            if(interaction.BotifexCommand.AdminOnly && 
+                ((command.ChannelId != (StatusChannel?.Id ?? 0) && command.ChannelId != (LogChannel?.Id ?? 0))  // it's not in either of the specified channels
+                || (adminIds.Count > 0 && !adminIds.Contains(command.User.Id)))) // the admins have been specified and it's not one of these
+            {
+                bool specificAdmins = (adminIds.Count > 0);
+                await command.RespondAsync($"Sorry, only {(specificAdmins ? "specific " : "")}admins in the proper server and channel can use that command", ephemeral: isEphemeral);
+                interaction.End();
+                return;
+            }
+
+            await command.DeferAsync(ephemeral: isEphemeral);
             FinalizeCommandReceived(new InteractionReceivedEventArgs(interaction));
         }
 

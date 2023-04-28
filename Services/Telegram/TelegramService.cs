@@ -1,11 +1,11 @@
-﻿using Discord;
+﻿using Discord.WebSocket;
+using Discord;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Botifex.Services
@@ -21,6 +21,8 @@ namespace Botifex.Services
         private int OngoingStatusMessageId { get; set; } = 0;
 
         private List<TelegramInteraction> activeInteractions = new List<TelegramInteraction>();
+
+        private List<string> adminNames = new List<string>();
         
         internal override int MAX_TEXT_LENGTH { get => 4096; }
         private ILogger<TelegramService> log;
@@ -44,6 +46,8 @@ namespace Botifex.Services
 
             long statusChannelId = config.GetValue<long>("TelegramStatusChannel");
             if (statusChannelId != 0) StatusChannel = new ChatId(statusChannelId);
+
+            adminNames = config?.GetValue<string[]>("TelegramAdminAllowlist")?.ToList() ?? new List<string>();
         }
 
         internal override async void OnStarted()
@@ -54,8 +58,8 @@ namespace Botifex.Services
             Bot.StartReceiving(updateHandler: OnUpdateReceived,
                                pollingErrorHandler: OnErrorReceived);
 
-            BotUsername = (await Bot.GetMeAsync()).Username ?? "";
-            
+            BotUsername = (await Bot.GetMeAsync()).Username ?? "";            
+
             IsReady = true;
             FinalizeFirstReady(EventArgs.Empty);
             await Log($"Yip Yip", LogLevel.Information);
@@ -107,6 +111,8 @@ namespace Botifex.Services
 
             // if there's an existing command waiting for response already, see if this is related to that       
             TelegramInteraction? existingInteraction = activeInteractions.Find(i => ((TelegramUser)i.Source.User).Account.Id == user.Account.Id && ((Message?)i.Source.Message)?.Chat.Id == chat.Id);
+            bool removeExistingInteraction = false;
+            
             if (existingInteraction is TelegramCommandInteraction && !String.IsNullOrEmpty((data.Message?.Text ?? "").Trim()))
             {
                 // if this is not a command, give it to the command interaction as a response
@@ -121,11 +127,8 @@ namespace Botifex.Services
                     return;
                 }
                 // otherwise end the previous incomplete interaction so the rest of this code can start a new one
-                else if(!((TelegramCommandInteraction)existingInteraction).IsReady)
-                {
-                    activeInteractions.Remove(existingInteraction);
-                    existingInteraction.End();
-                }
+                else if (!((TelegramCommandInteraction)existingInteraction).IsReady)
+                    removeExistingInteraction = true;
             }                
 
             InteractionSource source = new InteractionSource(new TelegramUser(data.Message!.From), this, data.Message);
@@ -136,14 +139,29 @@ namespace Botifex.Services
 
                 activeInteractions.Add(newInteraction);
 
+                await Bot.SendChatActionAsync(data.Message.Chat.Id, Telegram.Bot.Types.Enums.ChatAction.Typing);
                 if (newInteraction is TelegramCommandInteraction && ((TelegramCommandInteraction)newInteraction).IsReady)
+                {
+                    string username = ((TelegramUser)((TelegramCommandInteraction)newInteraction).Source.User).Account.Username ?? "";
+                    if (((TelegramCommandInteraction)newInteraction).BotifexCommand.AdminOnly
+                        && !adminNames.Contains(username))
+                    {
+                        await Reply(newInteraction, $"Sorry, only specified admins can use that command");
+                        activeInteractions.Remove(newInteraction);
+                        newInteraction.End();
+                        return;
+                    }
+
+                    if (removeExistingInteraction)
+                    {
+                        activeInteractions.Remove(existingInteraction!);
+                        existingInteraction!.End();
+                    }                    
                     FinalizeCommandReceived(new InteractionReceivedEventArgs(newInteraction));
+                }
 
                 else if (newInteraction is TelegramTextInteraction)
-                {
-                    await Bot.SendChatActionAsync(data.Message.Chat.Id, Telegram.Bot.Types.Enums.ChatAction.Typing);
                     FinalizeMessageReceived(new InteractionReceivedEventArgs(newInteraction));
-                }                    
             }
             catch (ArgumentException ex)
             {
@@ -151,21 +169,44 @@ namespace Botifex.Services
             }
         }
 
+        
         internal override async Task LoadCommands()
         {
             List<SlashCommand> botifexCommands = commandLibrary.Commands;
-            List<BotCommand> telegramCommands = new();
+            List<BotCommand> userCommands = new();
+            List<BotCommand> adminCommands = new();
+
             foreach( SlashCommand c in botifexCommands )
             {
-                telegramCommands.Add(new BotCommand()
+                BotCommand botCommand = new BotCommand()
                 {
                     Command = c.Name,
                     Description = c.Description
-                });
-                log.LogDebug($"Creating Telegram command {c.Name}");
+                };
+
+                switch (c.AdminOnly)
+                {
+                    case true:
+                        adminCommands.Add(botCommand);
+                        break;
+
+                    case false:
+                        userCommands.Add(botCommand);
+                        break;
+                }
+                log.LogDebug($"Creating Telegram {(c.AdminOnly ? "admin" : "")} command {c.Name}");
             }
             
-            await Bot.SetMyCommandsAsync(telegramCommands);
+            if(adminCommands.Count > 0)
+            {                
+                if (StatusChannel is not null) 
+                    await Bot.SetMyCommandsAsync(adminCommands, BotCommandScope.ChatAdministrators(StatusChannel));
+                
+                if (LogChannel is not null) 
+                    await Bot.SetMyCommandsAsync(adminCommands, BotCommandScope.ChatAdministrators(LogChannel));
+            }
+            
+            await Bot.SetMyCommandsAsync(userCommands);
         }
 
         internal override async Task CreateOrUpdateStatus(string statusText)

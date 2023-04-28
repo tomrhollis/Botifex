@@ -33,10 +33,13 @@ namespace Botifex
             }
         }
 
+        public bool AdminOnly {get; private set;}
+
         public List<CommandField> Options { get; set; } = new List<CommandField>();
 
-        public SlashCommand()
+        public SlashCommand(bool adminOnly=false)
         {
+            AdminOnly = adminOnly;
         }
 
     }
