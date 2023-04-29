@@ -3,7 +3,7 @@
     public abstract class Interaction
     {
         public Guid Id { get; private set; }
-        internal InteractionSource Source { get; set; }
+        public InteractionSource Source { get; set; }
         public virtual Dictionary<string, string> CommandFields { get; set; }
         public virtual Dictionary<string, string> MenuOptions { get; set; }
 

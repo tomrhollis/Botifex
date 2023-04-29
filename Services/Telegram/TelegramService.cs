@@ -22,7 +22,7 @@ namespace Botifex.Services
 
         private List<TelegramInteraction> activeInteractions = new List<TelegramInteraction>();
 
-        private List<string> adminNames = new List<string>();
+        private List<string> adminNames;
         
         internal override int MAX_TEXT_LENGTH { get => 4096; }
         private ILogger<TelegramService> log;
@@ -47,7 +47,7 @@ namespace Botifex.Services
             long statusChannelId = config.GetValue<long>("TelegramStatusChannel");
             if (statusChannelId != 0) StatusChannel = new ChatId(statusChannelId);
 
-            adminNames = config?.GetValue<string[]>("TelegramAdminAllowlist")?.ToList() ?? new List<string>();
+            adminNames = config.GetSection("TelegramAdminAllowlist").Get<string[]>()?.ToList() ?? new List<string>();
         }
 
         internal override async void OnStarted()
@@ -194,7 +194,6 @@ namespace Botifex.Services
                         userCommands.Add(botCommand);
                         break;
                 }
-                log.LogDebug($"Creating Telegram {(c.AdminOnly ? "admin" : "")} command {c.Name}");
             }
             
             if(adminCommands.Count > 0)

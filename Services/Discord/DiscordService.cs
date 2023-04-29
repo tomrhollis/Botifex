@@ -75,7 +75,7 @@ namespace Botifex.Services
             }
             await Log("Yip Yip", LogLevel.Information);
 
-            LoadAdminIds(config?.GetValue<string[]>("DiscordAdminAllowlist"));
+            LoadAdminIds(config?.GetSection("DiscordAdminAllowlist").Get<string[]>());
             FinalizeFirstReady(EventArgs.Empty);
 
             DiscordClient.MessageReceived += MessageHandler;
@@ -133,14 +133,7 @@ namespace Botifex.Services
             List<SlashCommandProperties> discordSlashCommands = new List<SlashCommandProperties>();            
 
             foreach(var command in  commandLibrary.Commands)
-            {
-                if(command.AdminOnly && adminIds.Count == 0)
-                {
-                    await Log($"Cannot add admin only command {command.Name} -- no valid admin users specified", LogLevel.Warning);
-                    continue;
-                }
                 discordSlashCommands.Add(BuildCommand(command));
-            }                
 
             try
             {
@@ -162,7 +155,6 @@ namespace Botifex.Services
                 {
                     newCommand.AddOption(option.Name, ApplicationCommandOptionType.String, option.Description, option.Required);
                 }
-                newCommand.WithDefaultPermission(!botifexCommand.AdminOnly);
                 newCommand.WithDMPermission(!botifexCommand.AdminOnly);
 
                 if (botifexCommand.AdminOnly)
