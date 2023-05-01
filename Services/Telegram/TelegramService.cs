@@ -65,11 +65,11 @@ namespace Botifex.Services
             await Log($"Yip Yip", LogLevel.Information);
         }
 
-        internal override void OnStopping()
+        internal override async void OnStopping()
         {
+            await Log("Awoooooo......", LogLevel.Information);
             log.LogDebug("OnStopping has been called.");
-
-            Log("Awoooooo......", LogLevel.Information).Wait();
+                        
             IsReady = false;
         }
 

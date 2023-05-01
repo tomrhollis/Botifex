@@ -5,6 +5,7 @@ namespace Botifex.Models
     public class BotifexUser
     {
         public List<IMessengerUser> Accounts { get; set; }
+        public string UserName { get => Accounts[0].Name; } // more useful functionality is in the wishlist
 
         public BotifexUser(IMessengerUser account) 
         {

@@ -2,5 +2,6 @@
 {
     public interface IMessengerUser
     {
+        string Name { get; }
     }
 }
