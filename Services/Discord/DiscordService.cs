@@ -270,7 +270,7 @@ namespace Botifex.Services
 
             for(int i =0; i<options.Count; i++)
             {
-                componentBuilder.WithButton(ButtonBuilder.CreatePrimaryButton($"{i}", options.Keys.ToArray()[i]));
+                componentBuilder.WithButton(ButtonBuilder.CreatePrimaryButton($"{i+1}", options.Keys.ToArray()[i]));
             }
 
             return componentBuilder.Build();
@@ -281,7 +281,7 @@ namespace Botifex.Services
             text = text ?? "";
             for (int i = 0; i < options.Count; i++)
             {
-                text += $"\n{i}] {options[options.Keys.ToArray()[i]]}";
+                text += $"\n{i+1}] {options[options.Keys.ToArray()[i]]}";
             }
             return text.Trim();
         }

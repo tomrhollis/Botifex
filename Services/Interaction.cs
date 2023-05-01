@@ -6,7 +6,7 @@ namespace Botifex.Services
     {
         public Guid Id { get; private set; }
         public InteractionSource Source { get; set; }
-        internal BotifexUser? User { get; set; }
+        public BotifexUser? User { get; set; }
         public virtual Dictionary<string, string> CommandFields { get; set; }
         public virtual Dictionary<string, string>? MenuOptions { get; set; }
 

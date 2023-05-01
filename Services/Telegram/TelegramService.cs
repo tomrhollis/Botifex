@@ -53,21 +53,29 @@ namespace Botifex.Services
         internal override async void OnStarted()
         {
             log.LogDebug("OnStarted has been called.");
+            try
+            {
+                // start listening
+                Bot.StartReceiving(updateHandler: OnUpdateReceived,
+                                   pollingErrorHandler: OnErrorReceived);
 
-            // start listening
-            Bot.StartReceiving(updateHandler: OnUpdateReceived,
-                               pollingErrorHandler: OnErrorReceived);
+                BotUsername = (await Bot.GetMeAsync()).Username ?? "";
 
-            BotUsername = (await Bot.GetMeAsync()).Username ?? "";            
-
-            IsReady = true;
-            FinalizeFirstReady(EventArgs.Empty);
-            await Log($"Yip Yip", LogLevel.Information);
+                IsReady = true;
+                FinalizeFirstReady(EventArgs.Empty);
+                log.LogInformation("Yip Yip");
+                //await Log($"Yip Yip", LogLevel.Information);
+            }
+            catch (Exception ex)
+            {
+                log.LogError($"[{DateTime.Now}] {ex.GetType()} - {ex.Message}");
+            }            
         }
 
-        internal override async void OnStopping()
+        internal override /*async*/ void OnStopping()
         {
-            await Log("Awoooooo......", LogLevel.Information);
+            log.LogInformation("Awoooooo.....");
+            //await Log("Awoooooo......", LogLevel.Information);
             log.LogDebug("OnStopping has been called.");
                         
             IsReady = false;
@@ -127,7 +135,7 @@ namespace Botifex.Services
                     return;
                 }
                 // otherwise end the previous incomplete interaction so the rest of this code can start a new one
-                else if (!((TelegramCommandInteraction)existingInteraction).IsReady)
+                else 
                     removeExistingInteraction = true;
             }                
 
@@ -136,7 +144,12 @@ namespace Botifex.Services
             {
                 TelegramInteraction? newInteraction = (TelegramInteraction?)interactionFactory?.CreateInteraction(source);
                 if (newInteraction is null) return;
-
+                
+                if (removeExistingInteraction)
+                {
+                    activeInteractions.Remove(existingInteraction!);
+                    existingInteraction!.End();
+                }
                 activeInteractions.Add(newInteraction);
 
                 await Bot.SendChatActionAsync(data.Message.Chat.Id, Telegram.Bot.Types.Enums.ChatAction.Typing);
@@ -151,12 +164,6 @@ namespace Botifex.Services
                         newInteraction.End();
                         return;
                     }
-
-                    if (removeExistingInteraction)
-                    {
-                        activeInteractions.Remove(existingInteraction!);
-                        existingInteraction!.End();
-                    }                    
                     FinalizeCommandReceived(new InteractionReceivedEventArgs(newInteraction));
                 }
 
@@ -224,7 +231,9 @@ namespace Botifex.Services
             if (!IsReady || StatusChannel is null) return;
 
             int messageId = (await SendNewMessage(StatusChannel, statusText)).MessageId;
-
+#if DEBUG
+            notification = false; // to stop spamming while testing other things
+#endif
             if (notification)
             {
                 await Bot.PinChatMessageAsync(StatusChannel, messageId, disableNotification: false);
