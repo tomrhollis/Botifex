@@ -1,11 +1,14 @@
-﻿namespace Botifex.Services
+﻿using Botifex.Models;
+
+namespace Botifex.Services
 {
     public abstract class Interaction
     {
         public Guid Id { get; private set; }
         public InteractionSource Source { get; set; }
+        internal BotifexUser? User { get; set; }
         public virtual Dictionary<string, string> CommandFields { get; set; }
-        public virtual Dictionary<string, string> MenuOptions { get; set; }
+        public virtual Dictionary<string, string>? MenuOptions { get; set; }
 
         internal object? BotMessage;
 

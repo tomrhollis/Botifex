@@ -15,7 +15,7 @@ namespace Botifex
 
         private EventHandler<InteractionReceivedEventArgs>? onCommand;
         private EventHandler<InteractionReceivedEventArgs>? onText;
-        private EventHandler<EventArgs> onReady;
+        private EventHandler<EventArgs>? onReady;
 
         private Messenger[] messengers;
         private List<BotifexUser> knownUsers = new List<BotifexUser>();
@@ -45,11 +45,11 @@ namespace Botifex
 
             if (onCommand != null)
                 foreach (var messenger in messengers)
-                    messenger.OnCommandReceived += onCommand;
+                    messenger.OnCommandReceived += CommandReceived;
 
             if (onText != null)
                 foreach (var messenger in messengers)
-                    messenger.OnMessageReceived += onText;
+                    messenger.OnMessageReceived += MessageReceived;
         }
 
         private void OnStopping()
@@ -88,9 +88,17 @@ namespace Botifex
             commandLibrary.RegisterCommand(command);
         }
 
-        private async void DoReadyTasks(object sender, EventArgs e)
+        private async void DoReadyTasks(object? sender, EventArgs e)
         {
-            await PushCommands((Messenger)sender);
+            if (sender is null) return;
+            try
+            {
+                await PushCommands((Messenger)sender);
+            }
+            catch(Exception ex)
+            {
+                log.LogError($"[{DateTime.Now}] {ex.GetType()} - {ex.Message}");
+            }            
         }
 
         public async Task PushCommands(Messenger m)
@@ -111,6 +119,48 @@ namespace Botifex
         public BotifexUser? GetUser(IMessengerUser messengerAccount)
         {
             return knownUsers.Find((u) => u.Accounts.Contains(messengerAccount));
+        }
+
+
+
+
+
+
+        private BotifexUser CreateOrFindUser(Interaction i)
+        {
+            BotifexUser? user = knownUsers.FirstOrDefault(u => u.Accounts.Contains(i.Source.User));
+
+            if (user is null)
+            {
+                user = new BotifexUser(i.Source.User);
+                knownUsers.Add(user);
+            }
+            return user;
+        }
+
+
+        // assign a botifex user to the interaction and call the registered event for text messages
+        internal void MessageReceived(object? sender, InteractionReceivedEventArgs e)
+        {
+            e.Interaction.User = CreateOrFindUser(e.Interaction);
+
+            EventHandler<InteractionReceivedEventArgs>? handler = onText;
+            if (handler is not null)
+            {
+                handler(this, e);
+            }
+        }
+
+        // assign a botifex user to the interaction and call the registered event for commands
+        internal void CommandReceived(object? sender, InteractionReceivedEventArgs e)
+        {
+            e.Interaction.User = CreateOrFindUser(e.Interaction);
+
+            EventHandler<InteractionReceivedEventArgs>? handler = onCommand;
+            if (handler is not null)
+            {
+                handler(this, e);
+            }
         }
     }
 }
