@@ -6,15 +6,22 @@ namespace Botifex.Services
         internal DiscordInteraction(InteractionSource source) : base(source) { }
         protected IDisposable? isTyping = null;
 
-        public override async Task Reply(string text, Dictionary<string, string>? options = null)
+        public override async Task Reply(string text)
         {
-            await base.Reply(text, options);
+            await base.Reply(text);
             isTyping?.Dispose();
         }
 
-        internal override void End()
+        public override async Task ReplyWithOptions(ReplyMenu menu, string? text)
+        {
+            await base.ReplyWithOptions(menu, text);
+            isTyping?.Dispose();
+        }
+
+        public override void End()
         {
             isTyping?.Dispose();
+            base.End();
         }
     }
 }

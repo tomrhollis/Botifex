@@ -6,9 +6,6 @@ namespace Botifex.Services
     {
         internal TelegramInteraction(InteractionSource source) : base(source) { }
 
-        internal override void End()
-        {
-            
-        }
+
     }
 }

@@ -58,9 +58,8 @@ namespace Botifex.Services
         {
             if (String.IsNullOrEmpty(response.Text) || String.IsNullOrEmpty(WaitingField))
                 throw new ArgumentNullException();
-
-            CommandFields.Add(WaitingField, response.Text);
             
+            CommandFields.Add(WaitingField, response.Text);
             IsReady = CheckReady(BotifexCommand.Options.FindAll(o => o.Required));
         }
     }

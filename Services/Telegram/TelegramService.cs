@@ -118,7 +118,7 @@ namespace Botifex.Services
             Chat chat = data.Message.Chat;
 
             // if there's an existing command waiting for response already, see if this is related to that       
-            TelegramInteraction? existingInteraction = activeInteractions.Find(i => ((TelegramUser)i.Source.User).Account.Id == user.Account.Id && ((Message?)i.Source.Message)?.Chat.Id == chat.Id);
+            TelegramInteraction? existingInteraction = activeInteractions.SingleOrDefault(i => ((TelegramUser)i.Source.User).Account.Id == user.Account.Id && ((Message?)i.Source.Message)?.Chat.Id == chat.Id);
             bool removeExistingInteraction = false;
             
             if (existingInteraction is TelegramCommandInteraction && !String.IsNullOrEmpty((data.Message?.Text ?? "").Trim()))
@@ -126,6 +126,16 @@ namespace Botifex.Services
                 // if this is not a command, give it to the command interaction as a response
                 if (data.Message?.Text.Trim()[0] != '/')
                 {
+                    if(existingInteraction.Menu is not null)
+                    {
+                        Message existingMessage = (Message)existingInteraction.BotMessage!;
+                        await Bot.DeleteMessageAsync(new ChatId(existingMessage.Chat.Id), existingMessage.MessageId);
+                        existingInteraction.BotMessage = null;
+
+                        existingInteraction.ChooseMenuOption(int.Parse(data.Message!.Text));
+                        return;
+                    }
+
                     ((TelegramCommandInteraction)existingInteraction).ReadResponse(data.Message!);
 
                     if (((TelegramCommandInteraction)existingInteraction).IsReady)
@@ -242,7 +252,23 @@ namespace Botifex.Services
             }
         }
 
-        internal override async Task Reply(Interaction interaction, string text, Dictionary<string, string>? options = null)
+
+        internal override async Task Reply(Interaction interaction, string text)
+        {
+            if (!IsReady || interaction.Source.Message is null) return;
+
+            Message userMessage = (Message)interaction.Source.Message;
+            Message? botMessage = (Message?)interaction.BotMessage;
+
+            if (interaction.BotMessage is not null)
+            {
+                interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId, Truncate(text));
+            }
+            else
+                interaction.BotMessage = await SendNewMessage(userMessage.Chat.Id, text, replyToMessageId: userMessage.MessageId);
+        }
+
+        internal override async Task ReplyWithOptions(Interaction interaction, string? text="")
         {
             if (!IsReady || interaction.Source.Message is null) return;
 
@@ -250,18 +276,21 @@ namespace Botifex.Services
 
             List<KeyboardButton> buttons = new List<KeyboardButton>();
             ReplyKeyboardMarkup? keyboard = null;
-            if (options is not null && options.Any())
+            if (interaction.Menu is not null && interaction.Menu.Options.Any())
             {
-                for(int i=0; i<options.Count; i++)
+                for(int i=0; i<interaction.Menu.Options.Count; i++)
                 {
                     buttons.Add(new KeyboardButton($"{i+1}"));
-                    text += $"\n{i+1}: {options[options.Keys.ToArray()[i]]}";
+                    
                 }
                 keyboard = new ReplyKeyboardMarkup(buttons);
                 keyboard.ResizeKeyboard = true;
                 keyboard.Selective = (userMessage.Chat.Type == Telegram.Bot.Types.Enums.ChatType.Private
                                       || userMessage.Chat.Type == Telegram.Bot.Types.Enums.ChatType.Sender);
                 keyboard.OneTimeKeyboard = true;
+
+                text += "\n" + interaction.Menu.MenuText;
+                text = text.Trim();
             }
 
             Message? botMessage = (Message?)interaction.BotMessage;
@@ -294,6 +323,21 @@ namespace Botifex.Services
 
             else
                 return await SendNewMessage(new ChatId(existingMessage.Chat.Id), text);
+        }
+
+        internal override async Task RemoveInteraction(Interaction i)
+        {
+            if (i is not TelegramInteraction) throw new ArgumentException();
+
+            TelegramInteraction interaction = (TelegramInteraction)i;
+            activeInteractions.Remove(interaction);
+
+            if (i.BotMessage is not null && i.Menu is not null)
+            {
+                Message message = (Message)interaction.BotMessage!;
+                await Bot.DeleteMessageAsync(new ChatId(message.Chat.Id), message.MessageId);
+            }
+
         }
     }
 }

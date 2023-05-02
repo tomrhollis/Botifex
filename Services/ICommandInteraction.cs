@@ -5,6 +5,8 @@
         public SlashCommand BotifexCommand { get; set; }
         public Dictionary<string, string> CommandFields { get; }
 
-        public Task Reply(string text, Dictionary<string, string>? options = null);
+        public Task Reply(string text);
+        public Task ReplyWithOptions(ReplyMenu menu, string? text);
+        public void End();
     }
 }

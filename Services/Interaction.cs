@@ -7,8 +7,9 @@ namespace Botifex.Services
         public Guid Id { get; private set; }
         public InteractionSource Source { get; set; }
         public BotifexUser? User { get; set; }
+        public ReplyMenu? Menu { get; set; }
+
         public virtual Dictionary<string, string> CommandFields { get; set; }
-        public virtual Dictionary<string, string>? MenuOptions { get; set; }
 
         internal object? BotMessage;
 
@@ -19,11 +20,34 @@ namespace Botifex.Services
             CommandFields = new Dictionary<string, string>();
         }
 
-        public virtual async Task Reply(string text, Dictionary<string, string>? options= null)
+        public virtual async Task Reply(string text)
         {
-            await Source.Messenger.Reply(this, text, options);
+            await Source.Messenger.Reply(this, text);
         }
 
-        internal abstract void End();
+        public virtual async Task ReplyWithOptions(ReplyMenu menu, string? text=null)
+        {
+            Menu = menu;
+            await Source.Messenger.ReplyWithOptions(this, text);
+        }
+
+        public virtual void ChooseMenuOption(int index)
+        {
+            if (Menu is null) return;
+
+            Menu.PassReplyByIndex(this, index);
+        }
+
+        public virtual void ChooseMenuOption(string text)
+        {
+            if (Menu is null) return;
+
+            Menu.PassReply(this, text);
+        }
+
+        public virtual void End()
+        {
+            Source.Messenger.RemoveInteraction(this);
+        }
     }
 }

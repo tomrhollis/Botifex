@@ -4,10 +4,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System.Net.WebSockets;
-using System.Reactive;
 using System.Text.RegularExpressions;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace Botifex.Services
 {
@@ -20,6 +17,7 @@ namespace Botifex.Services
         private ulong StatusMessageId { get; set; } = 0;
 
         private List<ulong> adminIds = new List<ulong>();
+        private List<DiscordInteraction> activeInteractions = new List<DiscordInteraction>();
 
         public override bool IsReady
         {
@@ -80,11 +78,10 @@ namespace Botifex.Services
 
             DiscordClient.MessageReceived += MessageHandler;
             DiscordClient.SlashCommandExecuted += SlashCommandHandler;
-            
-            /* add handlers
             DiscordClient.ButtonExecuted += ButtonHandler;
-            DiscordClient.SelectMenuExecuted += SelectMenuHandler;
-            */
+            
+            //DiscordClient.SelectMenuExecuted += SelectMenuHandler;
+            
         }
 
         private async Task DiscordLog(LogMessage msg)
@@ -198,6 +195,7 @@ namespace Botifex.Services
             DiscordInteraction? interaction = (DiscordInteraction?)interactionFactory?.CreateInteraction(new InteractionSource(new DiscordUser(message.Author), this, message));
             if (interaction is null) return Task.CompletedTask;
 
+            activeInteractions.Add(interaction);
             FinalizeMessageReceived(new InteractionReceivedEventArgs(interaction));
             return Task.CompletedTask;
         }
@@ -213,6 +211,7 @@ namespace Botifex.Services
                 await command.DeleteOriginalResponseAsync();
                 return;
             }
+            activeInteractions.Add(interaction);
 
             // if it's admin only, reject if it isn't from a proper source
             if(interaction.BotifexCommand.AdminOnly && 
@@ -229,70 +228,20 @@ namespace Botifex.Services
             FinalizeCommandReceived(new InteractionReceivedEventArgs(interaction));
         }
 
-        internal override async Task Reply(Interaction interaction, string? text = null, Dictionary<string, string>? options = null)
-        {
-            if (interaction.Source.Message is null) return;
-            
-            SocketMessage message = (SocketMessage)interaction.Source.Message;
-            MessageComponent? buttonComponent = null;
-            if (options is not null && options.Count > 0)
-            {
-                var componentBuilder = new ComponentBuilder();
-                buttonComponent = BuildButtonComponent(options);
-                text = AppendButtonDescriptors(text, options);
-            }
-
-            await message.Channel.SendMessageAsync(text, messageReference: new MessageReference(message.Id), components: buttonComponent);           
-        }
-
-        internal async Task CommandReply(Interaction interaction, string? text = null, Dictionary<string, string>? options = null)
-        {
-            if(interaction.Source.Message is null) return;
-
-            SocketSlashCommand command = (SocketSlashCommand)interaction.Source.Message;                   
-
-            await command.ModifyOriginalResponseAsync(m =>
-            {                
-                if (options is not null && options.Count > 0)
-                {
-                    var componentBuilder = new ComponentBuilder();
-                    m.Components = BuildButtonComponent(options);
-                    text = AppendButtonDescriptors(text, options);
-                }
-
-                if (!String.IsNullOrEmpty(text)) m.Content = Truncate(text);
-            });
-        }
-
-        private MessageComponent BuildButtonComponent(Dictionary<string,string> options)
-        {
-            var componentBuilder = new ComponentBuilder();
-
-            for(int i =0; i<options.Count; i++)
-            {
-                componentBuilder.WithButton(ButtonBuilder.CreatePrimaryButton($"{i+1}", options.Keys.ToArray()[i]));
-            }
-
-            return componentBuilder.Build();
-        }
-
-        private string AppendButtonDescriptors(string? text, Dictionary<string, string> options)
-        {
-            text = text ?? "";
-            for (int i = 0; i < options.Count; i++)
-            {
-                text += $"\n{i+1}] {options[options.Keys.ToArray()[i]]}";
-            }
-            return text.Trim();
-        }
-
-        /*
-
-
         private async Task ButtonHandler(SocketMessageComponent component)
         {
-            // 
+            string data = component.Data.CustomId;
+            string guid = Regex.Match(data, "^[^|]*").Value;
+            string choice = Regex.Match(data, "[^|]*$").Value;
+            Interaction? interaction = activeInteractions.SingleOrDefault(i => i.Id.ToString() == guid);
+            if (interaction is not null)
+            {
+                if (interaction.Menu is not null)
+                    interaction.ChooseMenuOption(choice);
+            }
+
         }
+        /*
 
         private async Task SelectMenuHandler(SocketMessageComponent component)
         {
@@ -306,5 +255,98 @@ namespace Botifex.Services
             }            
         }
         */
+
+        internal override async Task Reply(Interaction interaction, string text)
+        {
+            if (interaction.Source.Message is null) return;
+
+            SocketMessage message = (SocketMessage)interaction.Source.Message;
+            
+            await message.Channel.SendMessageAsync(text, messageReference: new MessageReference(message.Id));
+        }
+
+        internal override async Task ReplyWithOptions(Interaction interaction, string? text = null)
+        {
+            if (interaction.Source.Message is null) return;
+            
+            SocketMessage message = (SocketMessage)interaction.Source.Message;
+            MessageComponent? buttonComponent = null;
+            if (interaction.Menu is not null && interaction.Menu.Options.Count > 0)
+            {
+                var componentBuilder = new ComponentBuilder();
+                buttonComponent = BuildButtonComponent(interaction.Menu.Options, interaction.Id.ToString());
+                text += ("\n" + interaction.Menu.MenuText).Trim();
+            }
+
+            await message.Channel.SendMessageAsync(text, messageReference: new MessageReference(message.Id), components: buttonComponent);           
+        }
+
+        internal async Task CommandReply(Interaction interaction, string text)
+        {
+            if (interaction.Source.Message is null) return;
+
+            SocketSlashCommand command = (SocketSlashCommand)interaction.Source.Message;
+
+            await command.ModifyOriginalResponseAsync(m =>
+            {
+                m.Content = Truncate(text);
+            });
+        }
+
+        internal async Task CommandReplyWithOptions(Interaction interaction, string? text = "")
+        {
+            if(interaction.Source.Message is null) return;
+
+            SocketSlashCommand command = (SocketSlashCommand)interaction.Source.Message;                   
+
+            await command.ModifyOriginalResponseAsync(m =>
+            {
+                if (interaction.Menu is not null && interaction.Menu.Options.Count > 0)
+                {
+                    var componentBuilder = new ComponentBuilder();
+                    m.Components = BuildButtonComponent(interaction.Menu.Options, interaction.Id.ToString());
+                    text += "\n" + interaction.Menu.MenuText;
+                    text = text.Trim();
+                }
+
+                if (!String.IsNullOrEmpty(text)) m.Content = Truncate(text);
+            });
+        }
+
+        private MessageComponent BuildButtonComponent(Dictionary<string,string> options, string guid)
+        {
+            var componentBuilder = new ComponentBuilder();
+
+            for(int i =0; i<options.Count; i++)
+            {
+                componentBuilder.WithButton(ButtonBuilder.CreatePrimaryButton($"{i+1}", $"{guid}|{options.Keys.ToArray()[i]}"));
+            }
+            return componentBuilder.Build();
+        }
+
+
+        internal override async Task RemoveInteraction(Interaction i)
+        {
+            DiscordInteraction interaction = (DiscordInteraction)i;
+            activeInteractions.Remove(interaction);
+
+            if(interaction.Menu is not null)
+            {
+                if(interaction.BotMessage is SocketMessage)
+                {
+                    SocketMessage message = (SocketMessage)interaction.BotMessage;
+                    await message.DeleteAsync();
+                }
+                else if (interaction.BotMessage is SocketSlashCommand)
+                {
+                    SocketSlashCommand message = (SocketSlashCommand)interaction.BotMessage!;
+                    await message.ModifyOriginalResponseAsync(m =>
+                    {
+                        m.Components = null;
+                    });
+                }
+            }
+        }
+
     }
 }
