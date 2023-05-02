@@ -154,12 +154,10 @@ namespace Botifex.Services
             {
                 TelegramInteraction? newInteraction = (TelegramInteraction?)interactionFactory?.CreateInteraction(source);
                 if (newInteraction is null) return;
-                
-                if (removeExistingInteraction)
-                {
-                    activeInteractions.Remove(existingInteraction!);
+
+                if (removeExistingInteraction) // this needs to wait until now to be sure the new interaction creates successfully
                     existingInteraction!.End();
-                }
+
                 activeInteractions.Add(newInteraction);
 
                 await Bot.SendChatActionAsync(data.Message.Chat.Id, Telegram.Bot.Types.Enums.ChatAction.Typing);
@@ -170,7 +168,6 @@ namespace Botifex.Services
                         && !adminNames.Contains(username))
                     {
                         await Reply(newInteraction, $"Sorry, only specified admins can use that command");
-                        activeInteractions.Remove(newInteraction);
                         newInteraction.End();
                         return;
                     }
@@ -336,8 +333,8 @@ namespace Botifex.Services
             {
                 Message message = (Message)interaction.BotMessage!;
                 await Bot.DeleteMessageAsync(new ChatId(message.Chat.Id), message.MessageId);
+                await Bot.SendTextMessageAsync(new ChatId(message.Chat.Id), ((Message)i.BotMessage).Text!, replyToMessageId: ((Message)i.Source.Message!).MessageId, disableNotification: true);
             }
-
         }
     }
 }

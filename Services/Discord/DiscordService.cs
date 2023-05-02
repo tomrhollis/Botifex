@@ -230,14 +230,15 @@ namespace Botifex.Services
 
         private async Task ButtonHandler(SocketMessageComponent component)
         {
+            await component.DeferAsync();
             string data = component.Data.CustomId;
             string guid = Regex.Match(data, "^[^|]*").Value;
             string choice = Regex.Match(data, "[^|]*$").Value;
             Interaction? interaction = activeInteractions.SingleOrDefault(i => i.Id.ToString() == guid);
-            if (interaction is not null)
+            if (interaction is not null && interaction.Menu is not null)
             {
-                if (interaction.Menu is not null)
-                    interaction.ChooseMenuOption(choice);
+                ((DiscordInteraction)interaction).MenuComponent = component; 
+                interaction.ChooseMenuOption(choice);
             }
 
         }
@@ -261,8 +262,8 @@ namespace Botifex.Services
             if (interaction.Source.Message is null) return;
 
             SocketMessage message = (SocketMessage)interaction.Source.Message;
-            
-            await message.Channel.SendMessageAsync(text, messageReference: new MessageReference(message.Id));
+            await message.Channel.SendMessageAsync(text, messageReference: new MessageReference(message.Id), components: null);
+
         }
 
         internal override async Task ReplyWithOptions(Interaction interaction, string? text = null)
@@ -290,6 +291,7 @@ namespace Botifex.Services
             await command.ModifyOriginalResponseAsync(m =>
             {
                 m.Content = Truncate(text);
+                m.Components = null;
             });
         }
 

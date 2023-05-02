@@ -6,6 +6,7 @@ namespace Botifex.Services
     {
         internal User Account { get; private set; }
         public string Name { get => (Account.FirstName + " " + Account.LastName); }
+        public string Id { get => Account.Id.ToString(); }
         internal TelegramUser(User user)
         {
             Account = user;

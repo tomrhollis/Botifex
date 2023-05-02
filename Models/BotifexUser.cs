@@ -11,7 +11,7 @@ namespace Botifex.Models
 
         public BotifexUser(IMessengerUser account) 
         {
-            Guid = new Guid();
+            Guid = Guid.NewGuid();
             Accounts = new List<IMessengerUser>
             {
                 account

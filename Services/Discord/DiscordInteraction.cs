@@ -1,14 +1,16 @@
 ﻿
+using Discord.WebSocket;
+
 namespace Botifex.Services
 {
     internal abstract class DiscordInteraction : Interaction
     {
         internal DiscordInteraction(InteractionSource source) : base(source) { }
         protected IDisposable? isTyping = null;
+        internal SocketMessageComponent? MenuComponent { get; set; } = null;
 
         public override async Task Reply(string text)
         {
-            await base.Reply(text);
             isTyping?.Dispose();
         }
 

@@ -128,7 +128,7 @@ namespace Botifex
 
         private BotifexUser CreateOrFindUser(Interaction i)
         {
-            BotifexUser? user = knownUsers.FirstOrDefault(u => u.Accounts.Contains(i.Source.User));
+            BotifexUser? user = knownUsers.FirstOrDefault(u => u.Accounts.FirstOrDefault(a=>a.Id == i.Source.User.Id) is not null);
 
             if (user is null)
             {
