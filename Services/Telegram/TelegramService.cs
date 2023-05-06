@@ -239,11 +239,20 @@ namespace Botifex.Services
         {
             if (!IsReady || StatusChannel is null) return;
 
-            if (OngoingStatusMessageId == 0)
-                OngoingStatusMessageId = (await SendNewMessage(StatusChannel, statusText)).MessageId;
+            try
+            {
+                if (OngoingStatusMessageId == 0)
+                    OngoingStatusMessageId = (await SendNewMessage(StatusChannel, statusText)).MessageId;
 
-            else if (StatusChannel.Identifier is not null)
-                await Bot.EditMessageTextAsync(StatusChannel, OngoingStatusMessageId, Truncate(statusText));
+                else if (StatusChannel.Identifier is not null)
+                    await Bot.EditMessageTextAsync(StatusChannel, OngoingStatusMessageId, Truncate(statusText));
+            }
+            catch(Exception e) 
+            {
+                // ignore
+            }
+
+
         }
 
         internal override async Task SendOneTimeStatus(string statusText, bool notification = false)
