@@ -275,7 +275,7 @@ namespace Botifex.Services
             if (interaction.Menu is not null && interaction.Menu.Options.Count > 0)
             {
                 var componentBuilder = new ComponentBuilder();
-                buttonComponent = BuildButtonComponent(interaction.Menu.Options, interaction.Id.ToString());
+                buttonComponent = BuildButtonComponent(interaction.Menu, interaction.Id.ToString());
                 text += ("\n" + interaction.Menu.MenuText).Trim();
             }
 
@@ -306,7 +306,7 @@ namespace Botifex.Services
                 if (interaction.Menu is not null && interaction.Menu.Options.Count > 0)
                 {
                     var componentBuilder = new ComponentBuilder();
-                    m.Components = BuildButtonComponent(interaction.Menu.Options, interaction.Id.ToString());
+                    m.Components = BuildButtonComponent(interaction.Menu, interaction.Id.ToString());
                     text += "\n" + interaction.Menu.MenuText;
                     text = text.Trim();
                 }
@@ -315,13 +315,14 @@ namespace Botifex.Services
             });
         }
 
-        private MessageComponent BuildButtonComponent(Dictionary<string,string> options, string guid)
+        private MessageComponent BuildButtonComponent(ReplyMenu optionsMenu, string guid)
         {
             var componentBuilder = new ComponentBuilder();
+            Dictionary<string, string> options = optionsMenu.Options;
 
             for(int i =0; i<options.Count; i++)
             {
-                componentBuilder.WithButton(ButtonBuilder.CreatePrimaryButton($"{i+1}", $"{guid}|{options.Keys.ToArray()[i]}"));
+                componentBuilder.WithButton(ButtonBuilder.CreatePrimaryButton($"{(optionsMenu.NumberedChoices ? i+1 : options.Keys.ToArray()[i])}", $"{guid}|{options.Keys.ToArray()[i]}"));
             }
             return componentBuilder.Build();
         }
@@ -342,10 +343,7 @@ namespace Botifex.Services
                 else if (interaction.BotMessage is SocketSlashCommand)
                 {
                     SocketSlashCommand message = (SocketSlashCommand)interaction.BotMessage!;
-                    await message.ModifyOriginalResponseAsync(m =>
-                    {
-                        m.Components = null;
-                    });
+                    await message.DeleteOriginalResponseAsync();
                 }
             }
         }

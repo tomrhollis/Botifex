@@ -7,6 +7,8 @@ using System.Text.RegularExpressions;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
+using System.ComponentModel.Design;
+using Telegram.Bot.Exceptions;
 
 namespace Botifex.Services
 {
@@ -126,13 +128,25 @@ namespace Botifex.Services
                 // if this is not a command, give it to the command interaction as a response
                 if (data.Message?.Text.Trim()[0] != '/')
                 {
+                    if (existingInteraction.IsProcessing)
+                        return;  // they jumped the gun, ignore this
+
                     if(existingInteraction.Menu is not null)
                     {
-                        Message existingMessage = (Message)existingInteraction.BotMessage!;
-                        await Bot.DeleteMessageAsync(new ChatId(existingMessage.Chat.Id), existingMessage.MessageId);
-                        existingInteraction.BotMessage = null;
-
-                        existingInteraction.ChooseMenuOption(int.Parse(data.Message!.Text));
+                        if (existingInteraction.Menu.NumberedChoices)
+                            try
+                            {
+                                existingInteraction.ChooseMenuOption(int.Parse(data.Message!.Text));
+                            }
+                            catch (Exception ex) when (ex is ArgumentNullException or FormatException or OverflowException)
+                            {
+                                await existingInteraction.Reply("Well I wasn't expecting that");
+                                existingInteraction.End();
+                                return;
+                            }
+                            
+                        else
+                            existingInteraction.ChooseMenuOption(data.Message!.Text);
                         return;
                     }
 
@@ -159,7 +173,6 @@ namespace Botifex.Services
                     existingInteraction!.End();
 
                 activeInteractions.Add(newInteraction);
-
                 await Bot.SendChatActionAsync(data.Message.Chat.Id, Telegram.Bot.Types.Enums.ChatAction.Typing);
                 if (newInteraction is TelegramCommandInteraction && ((TelegramCommandInteraction)newInteraction).IsReady)
                 {
@@ -257,9 +270,22 @@ namespace Botifex.Services
             Message userMessage = (Message)interaction.Source.Message;
             Message? botMessage = (Message?)interaction.BotMessage;
 
+            // if this is a result of a menu selection, clear out the response message so the menu can go away. 
+            // It will fall through to sending a new message in the next if/else
+            if (interaction.Menu is not null)
+            {
+                interaction.Menu = null;
+                await Bot.DeleteMessageAsync(new ChatId(botMessage.Chat.Id), botMessage.MessageId);
+                interaction.BotMessage = null;                
+            }
+
             if (interaction.BotMessage is not null)
             {
-                interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId, Truncate(text));
+                try
+                {
+                    interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId, Truncate(text));
+                }
+                catch (ApiRequestException arx) { } // this occurs when they're typing too fast and get ahead of responses. Ignores the impatient texts
             }
             else
                 interaction.BotMessage = await SendNewMessage(userMessage.Chat.Id, text, replyToMessageId: userMessage.MessageId);
@@ -277,7 +303,7 @@ namespace Botifex.Services
             {
                 for(int i=0; i<interaction.Menu.Options.Count; i++)
                 {
-                    buttons.Add(new KeyboardButton($"{i+1}"));
+                    buttons.Add(new KeyboardButton($"{(interaction.Menu.NumberedChoices ? i+1 : interaction.Menu.Options.Keys.ToArray()[i])}"));
                     
                 }
                 keyboard = new ReplyKeyboardMarkup(buttons);
@@ -300,8 +326,12 @@ namespace Botifex.Services
             }
 
             if (interaction.BotMessage is not null)
-            {                
-                interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId, Truncate(text));
+            {
+                try
+                {
+                    interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId, Truncate(text));
+                }
+                catch (ApiRequestException arx) { } // this occurs when they're typing too fast and get ahead of responses. Ignores the impatient texts
             }                
             else
                 interaction.BotMessage = await SendNewMessage(userMessage.Chat.Id, text, replyToMessageId: userMessage.MessageId, markup: keyboard);
@@ -310,7 +340,16 @@ namespace Botifex.Services
         // separating this out now because it'll all have to go through an API queue eventually
         private async Task<Message> SendNewMessage(ChatId chatId, string text, int? replyToMessageId = null, ReplyKeyboardMarkup? markup = null) 
         {
-            return await Bot.SendTextMessageAsync(chatId, Truncate(text), replyToMessageId: replyToMessageId, replyMarkup: markup);
+            Message newMessage = new Message();
+            try
+            {
+                newMessage = await Bot.SendTextMessageAsync(chatId, Truncate(text), replyToMessageId: replyToMessageId, replyMarkup: markup);
+            }
+            catch(ApiRequestException arx) // this can occur on restart sometimes or if the user deletes a message before a response comes back
+            {
+                newMessage = await Bot.SendTextMessageAsync(chatId, Truncate(text), replyMarkup: markup);
+            }
+            return newMessage;
         }
 
         private async Task<Message> AppendText(Message existingMessage, string text)

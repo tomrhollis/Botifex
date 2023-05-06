@@ -52,12 +52,13 @@ namespace Botifex.Services
         internal async Task FollowUp(string text)
         {
             await ((TelegramService)Source.Messenger).Reply(this, text);
+            IsProcessing = false;
         }
 
         internal void ReadResponse(Message response)
         {
-            if (String.IsNullOrEmpty(response.Text) || String.IsNullOrEmpty(WaitingField))
-                throw new ArgumentNullException();
+            if (String.IsNullOrEmpty(response.Text) || String.IsNullOrEmpty(WaitingField) || IsProcessing)
+                return;
             
             CommandFields.Add(WaitingField, response.Text);
             IsReady = CheckReady(BotifexCommand.Options.FindAll(o => o.Required));

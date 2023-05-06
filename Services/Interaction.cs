@@ -8,6 +8,7 @@ namespace Botifex.Services
         public InteractionSource Source { get; set; }
         public BotifexUser? User { get; set; }
         public ReplyMenu? Menu { get; set; }
+        public bool IsProcessing { get; protected private set; }
 
         public virtual Dictionary<string, string> CommandFields { get; set; }
 
@@ -18,36 +19,41 @@ namespace Botifex.Services
             Id = new Guid();
             Source = source;
             CommandFields = new Dictionary<string, string>();
+            IsProcessing = true;
         }
 
         public virtual async Task Reply(string text)
         {
             await Source.Messenger.Reply(this, text);
+            IsProcessing = false;
         }
 
         public virtual async Task ReplyWithOptions(ReplyMenu menu, string? text=null)
         {
             Menu = menu;
             await Source.Messenger.ReplyWithOptions(this, text);
+            IsProcessing = false;
+
         }
 
         public virtual void ChooseMenuOption(int index)
         {
             if (Menu is null) return;
-
+            IsProcessing = true;
             Menu.PassReplyByIndex(this, index);
         }
 
         public virtual void ChooseMenuOption(string text)
         {
             if (Menu is null) return;
-
+            IsProcessing = true;
             Menu.PassReply(this, text);
         }
 
-        public virtual void End()
+        public virtual async Task End()
         {
-            Source.Messenger.RemoveInteraction(this);
+            IsProcessing = false;
+            await Source.Messenger.RemoveInteraction(this);
         }
     }
 }

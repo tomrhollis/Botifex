@@ -7,6 +7,6 @@
         public Task Reply(string text);
         public Task ReplyWithOptions(ReplyMenu menu, string? text);
 
-        public void End();
+        public Task End();
     }
 }

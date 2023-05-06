@@ -20,10 +20,10 @@ namespace Botifex.Services
             isTyping?.Dispose();
         }
 
-        public override void End()
+        public override async Task End()
         {
             isTyping?.Dispose();
-            base.End();
+            await base.End();
         }
     }
 }

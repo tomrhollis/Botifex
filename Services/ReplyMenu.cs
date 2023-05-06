@@ -7,6 +7,7 @@
         public string MenuText { get => this.ToString(); }
 
         internal event EventHandler<MenuReplyReceivedEventArgs> onReply;
+        public bool NumberedChoices { get; set; } = true;
 
         public ReplyMenu(string name, Dictionary<string, string> options, EventHandler<MenuReplyReceivedEventArgs> handler) 
         {
@@ -35,7 +36,7 @@
         {
             string text = "";
             for (int i = 0; i < Options.Count; i++)
-                text += $"{i + 1}: {Options[Options.Keys.ToArray()[i]]}\n";
+                text += $"{(NumberedChoices ? i + 1 : Options.Keys.ToArray()[i])}: {Options[Options.Keys.ToArray()[i]]}\n";
 
             return text.Trim();
         }
