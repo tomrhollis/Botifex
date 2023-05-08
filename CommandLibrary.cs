@@ -21,6 +21,7 @@ namespace Botifex
 
         public void RegisterCommand(SlashCommand command)
         {
+            command.Name = command.Name.ToLower();
             if (commands.ContainsKey(command.Name)) log.LogWarning($"Attempted to add {command.Name} more than once, ignored");
             else
             {
