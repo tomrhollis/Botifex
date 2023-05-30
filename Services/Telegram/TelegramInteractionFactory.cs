@@ -29,7 +29,7 @@ namespace Botifex.Services
                 // if it's not this one, abort
                 if (!String.IsNullOrEmpty(botName) && botName.ToLower() != selfName.ToLower()) return null;
 
-                //finally meets all requirements to be a command, so make sure it's one of the ones actually defined and go
+                //finally meets all requirements to be a command, so make sure it's one of the ones actually defined and it's not coming from a group chat and go
                 if (commandLibrary.HasCommand(commandName.ToLower()))
                     return new TelegramCommandInteraction(source, commandLibrary.GetCommand(commandName.ToLower()));   
                 // don't throw exception on unknown command like in the discord interaction factory, because in telegram users can just type whatever slash commands

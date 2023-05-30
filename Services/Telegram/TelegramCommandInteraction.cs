@@ -17,20 +17,30 @@ namespace Botifex.Services
         {
             initialCommand = (Message?)source.Message;
             BotifexCommand = command;
-            List<CommandField> requiredOptions = BotifexCommand.Options.FindAll(o => o.Required);
 
-            string commandText = initialCommand?.Text?.Trim() ?? string.Empty;
+            if(initialCommand?.Chat.Type != Telegram.Bot.Types.Enums.ChatType.Private && !command.AdminOnly)
+            {
+                source.Messenger.Reply(this, "That command is not allowed in group chats, try DMs!").Wait();
+                End().Wait();
+            } 
+            else
+            {
+                List<CommandField> requiredOptions = BotifexCommand.Options.FindAll(o => o.Required);
 
-            // if it's a command with only one required field, see if they provided it after the command
-            if(BotifexCommand.Options.Count != 0 && requiredOptions.Count == 1){
-                Match findData = Regex.Match(commandText, "([\\s])(.*)");
+                string commandText = initialCommand?.Text?.Trim() ?? string.Empty;
 
-                // if it's there, use it as the command data
-                if (findData is not null && findData.Groups?.Count > 1)
-                    CommandFields.Add(BotifexCommand.Options[0].Name, findData.Groups[2].Value);
-            }
+                // if it's a command with only one required field, see if they provided it after the command
+                if (BotifexCommand.Options.Count != 0 && requiredOptions.Count == 1)
+                {
+                    Match findData = Regex.Match(commandText, "([\\s])(.*)");
 
-            IsReady = CheckReady(requiredOptions);                      
+                    // if it's there, use it as the command data
+                    if (findData is not null && findData.Groups?.Count > 1)
+                        CommandFields.Add(BotifexCommand.Options[0].Name, findData.Groups[2].Value);
+                }
+
+                IsReady = CheckReady(requiredOptions);
+            }                            
         }
 
         private bool CheckReady(List<CommandField> requiredOptions)

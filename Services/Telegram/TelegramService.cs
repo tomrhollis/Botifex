@@ -232,7 +232,7 @@ namespace Botifex.Services
                     await Bot.SetMyCommandsAsync(adminCommands, BotCommandScope.ChatAdministrators(LogChannel));
             }
             
-            await Bot.SetMyCommandsAsync(userCommands);
+            await Bot.SetMyCommandsAsync(userCommands, BotCommandScope.AllPrivateChats());
         }
 
         internal override async Task CreateOrUpdateStatus(string statusText)
