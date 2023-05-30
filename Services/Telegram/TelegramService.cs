@@ -1,13 +1,10 @@
-﻿using Discord.WebSocket;
-using Discord;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
-using System.ComponentModel.Design;
 using Telegram.Bot.Exceptions;
 
 namespace Botifex.Services
@@ -30,7 +27,10 @@ namespace Botifex.Services
         private ILogger<TelegramService> log;
         internal string BotUsername { get; private set; } = "";
 
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
+                               // supporessed because the fields it's worried about ARE assigned in this constructor, not sure why it's complaining.
         public TelegramService(ILogger<TelegramService> log, IConfiguration cfg, IHostApplicationLifetime lifetime, ICommandLibrary lib) 
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
                 : base(lifetime, cfg.GetSection("Telegram"), lib)
         {
             this.log = log;
@@ -141,7 +141,7 @@ namespace Botifex.Services
                             catch (Exception ex) when (ex is ArgumentNullException or FormatException or OverflowException)
                             {
                                 await existingInteraction.Reply("Well I wasn't expecting that");
-                                existingInteraction.End();
+                                await existingInteraction.End();
                                 return;
                             }
                             
@@ -170,7 +170,7 @@ namespace Botifex.Services
                 if (newInteraction is null) return;
 
                 if (removeExistingInteraction) // this needs to wait until now to be sure the new interaction creates successfully
-                    existingInteraction!.End();
+                    await existingInteraction!.End();
 
                 activeInteractions.Add(newInteraction);
                 await Bot.SendChatActionAsync(data.Message.Chat.Id, Telegram.Bot.Types.Enums.ChatAction.Typing);
@@ -181,7 +181,7 @@ namespace Botifex.Services
                         && !adminNames.Contains(username))
                     {
                         await Reply(newInteraction, $"Sorry, only specified admins can use that command");
-                        newInteraction.End();
+                        await newInteraction.End();
                         return;
                     }
                     FinalizeCommandReceived(new InteractionReceivedEventArgs(newInteraction));
@@ -190,7 +190,7 @@ namespace Botifex.Services
                 else if (newInteraction is TelegramTextInteraction)
                     FinalizeMessageReceived(new InteractionReceivedEventArgs(newInteraction));
             }
-            catch (ArgumentException ex)
+            catch (ArgumentException)
             {
                 // catch and ignore
             }
@@ -247,7 +247,7 @@ namespace Botifex.Services
                 else if (StatusChannel.Identifier is not null)
                     await Bot.EditMessageTextAsync(StatusChannel, OngoingStatusMessageId, Truncate(statusText));
             }
-            catch(Exception e) 
+            catch(Exception) 
             {
                 // ignore
             }
@@ -284,7 +284,7 @@ namespace Botifex.Services
             if (interaction.Menu is not null)
             {
                 interaction.Menu = null;
-                await Bot.DeleteMessageAsync(new ChatId(botMessage.Chat.Id), botMessage.MessageId);
+                await Bot.DeleteMessageAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId);
                 interaction.BotMessage = null;                
             }
 
@@ -294,14 +294,15 @@ namespace Botifex.Services
                 {
                     interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId, Truncate(text));
                 }
-                catch (ApiRequestException arx) { } // this occurs when they're typing too fast and get ahead of responses. Ignores the impatient texts
+                catch (ApiRequestException) { } // this occurs when they're typing too fast and get ahead of responses. Ignores the impatient texts
             }
             else
                 interaction.BotMessage = await SendNewMessage(userMessage.Chat.Id, text, replyToMessageId: userMessage.MessageId);
         }
 
-        internal override async Task ReplyWithOptions(Interaction interaction, string? text="")
+        internal override async Task ReplyWithOptions(Interaction interaction, string? text)
         {
+            text = text ?? string.Empty;
             if (!IsReady || interaction.Source.Message is null) return;
 
             Message userMessage = (Message)interaction.Source.Message;
@@ -340,7 +341,7 @@ namespace Botifex.Services
                 {
                     interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId, Truncate(text));
                 }
-                catch (ApiRequestException arx) { } // this occurs when they're typing too fast and get ahead of responses. Ignores the impatient texts
+                catch (ApiRequestException) { } // this occurs when they're typing too fast and get ahead of responses. Ignores the impatient texts
             }                
             else
                 interaction.BotMessage = await SendNewMessage(userMessage.Chat.Id, text, replyToMessageId: userMessage.MessageId, markup: keyboard);
@@ -354,7 +355,7 @@ namespace Botifex.Services
             {
                 newMessage = await Bot.SendTextMessageAsync(chatId, Truncate(text), replyToMessageId: replyToMessageId, replyMarkup: markup);
             }
-            catch(ApiRequestException arx) // this can occur on restart sometimes or if the user deletes a message before a response comes back
+            catch(ApiRequestException) // this can occur on restart sometimes or if the user deletes a message before a response comes back
             {
                 newMessage = await Bot.SendTextMessageAsync(chatId, Truncate(text), replyMarkup: markup);
             }

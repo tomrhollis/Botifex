@@ -220,7 +220,7 @@ namespace Botifex.Services
             {
                 bool specificAdmins = (adminIds.Count > 0);
                 await command.RespondAsync($"Sorry, only {(specificAdmins ? "specific " : "")}admins in the proper server and channel can use that command", ephemeral: isEphemeral);
-                interaction.End();
+                await interaction.End();
                 return;
             }
 
