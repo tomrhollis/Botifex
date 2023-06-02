@@ -2,7 +2,7 @@
 
 namespace Botifex.Services
 {
-    internal abstract class TelegramInteraction : Interaction
+    public abstract class TelegramInteraction : Interaction
     {
         internal TelegramInteraction(InteractionSource source) : base(source) { }
 

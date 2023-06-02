@@ -10,7 +10,7 @@ namespace Botifex.Services
 
         public Interaction? CreateInteraction(InteractionSource source)
         {
-            if (source.Messenger is not TelegramService || source.Message is not Message) throw new ArgumentException();
+            if (source.User.Messenger is not TelegramService || source.Message is not Message) throw new ArgumentException();
 
             string text = (((Message?)source.Message)?.Text ?? "").Trim();
             if (String.IsNullOrEmpty(text)) return null;
@@ -25,7 +25,7 @@ namespace Botifex.Services
                 // find bot name
                 Match bot = Regex.Match(text, $"\\/{commandName}@([\\S]*)");
                 string botName = bot.Groups.Count > 1 ? bot.Groups[1].Value : "";
-                string selfName = ((TelegramService)source.Messenger).BotUsername;
+                string selfName = ((TelegramService)source.User.Messenger).BotUsername;
                 // if it's not this one, abort
                 if (!String.IsNullOrEmpty(botName) && botName.ToLower() != selfName.ToLower()) return null;
 

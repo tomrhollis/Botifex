@@ -6,7 +6,6 @@ namespace Botifex.Services
     {
         internal IMessengerUser User { get; set; }
         internal object? Message {  get; set; }
-        internal Messenger Messenger { get; set; }
 
         public string MessageId
         {
@@ -50,11 +49,10 @@ namespace Botifex.Services
             }
         }
 
-        internal InteractionSource (IMessengerUser user, Messenger messenger, object? message = null)
+        internal InteractionSource (IMessengerUser user, object? message = null)
         {
             User = user;
             Message = message;
-            Messenger = messenger;
         }
     }
 }

@@ -24,14 +24,14 @@ namespace Botifex.Services
 
         public override async Task Reply(string text)
         {
-            await ((DiscordService)Source.Messenger).CommandReply(this, text);
+            await ((DiscordService)Source.User.Messenger).CommandReply(this, text);
             isTyping?.Dispose();
         }
 
         public override async Task ReplyWithOptions(ReplyMenu menu, string? text = null)
         {
             Menu = menu;
-            await ((DiscordService)Source.Messenger).CommandReplyWithOptions(this, text);
+            await ((DiscordService)Source.User.Messenger).CommandReplyWithOptions(this, text);
             isTyping?.Dispose();
         }
     }

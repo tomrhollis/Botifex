@@ -116,7 +116,7 @@ namespace Botifex.Services
                 && !Regex.Match(data.Message.Text.ToLower(), $"@{BotUsername.ToLower()}").Success)
                 return;
 
-            TelegramUser user = new TelegramUser(data.Message.From);
+            TelegramUser user = new TelegramUser(this, data.Message.From);
             Chat chat = data.Message.Chat;
 
             // if there's an existing command waiting for response already, see if this is related to that       
@@ -163,7 +163,7 @@ namespace Botifex.Services
                     removeExistingInteraction = true;
             }                
 
-            InteractionSource source = new InteractionSource(new TelegramUser(data.Message!.From), this, data.Message);
+            InteractionSource source = new InteractionSource(new TelegramUser(this, data.Message!.From), data.Message);
             try
             {
                 TelegramInteraction? newInteraction = (TelegramInteraction?)interactionFactory?.CreateInteraction(source);
@@ -384,6 +384,13 @@ namespace Botifex.Services
                 await Bot.DeleteMessageAsync(new ChatId(message.Chat.Id), message.MessageId);
                 await Bot.SendTextMessageAsync(new ChatId(message.Chat.Id), ((Message)i.BotMessage).Text!, replyToMessageId: ((Message)i.Source.Message!).MessageId, disableNotification: true);
             }
+        }
+
+        internal override async Task SendMessageToUser(IMessengerUser user, string message)
+        {
+            if(user is not TelegramUser) throw new ArgumentException();
+
+            await SendNewMessage(new ChatId(((TelegramUser)user).Account.Id), message);
         }
     }
 }

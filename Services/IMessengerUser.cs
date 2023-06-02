@@ -5,5 +5,7 @@
         string Name { get; }
 
         string Id { get; }
+
+        Messenger Messenger { get; }
     }
 }

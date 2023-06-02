@@ -24,14 +24,14 @@ namespace Botifex.Services
 
         public virtual async Task Reply(string text)
         {
-            await Source.Messenger.Reply(this, text);
+            await Source.User.Messenger.Reply(this, text);
             IsProcessing = false;
         }
 
         public virtual async Task ReplyWithOptions(ReplyMenu menu, string? text=null)
         {
             Menu = menu;
-            await Source.Messenger.ReplyWithOptions(this, text);
+            await Source.User.Messenger.ReplyWithOptions(this, text);
             IsProcessing = false;
 
         }
@@ -53,7 +53,7 @@ namespace Botifex.Services
         public virtual async Task End()
         {
             IsProcessing = false;
-            await Source.Messenger.RemoveInteraction(this);
+            await Source.User.Messenger.RemoveInteraction(this);
         }
     }
 }

@@ -11,6 +11,7 @@ namespace Botifex.Services
 
         public override async Task Reply(string text)
         {
+            await base.Reply(text);
             isTyping?.Dispose();
         }
 

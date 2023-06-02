@@ -1,4 +1,5 @@
-﻿using Botifex.Services;
+﻿using Botifex.Models;
+using Botifex.Services;
 
 namespace Botifex
 {
@@ -11,5 +12,6 @@ namespace Botifex
         public void RegisterTextHandler(EventHandler<InteractionReceivedEventArgs> handler);
         Task SendOneTimeStatusUpdate(string message, bool notification = false);
         public Task SendStatusUpdate(string message);
+        Task SendToUser(BotifexUser user, string message);
     }
 }

@@ -121,10 +121,17 @@ namespace Botifex
             return knownUsers.Find((u) => u.Accounts.Contains(messengerAccount));
         }
 
-
-
-
-
+        public async Task SendToUser(BotifexUser? user, string message)
+        {
+            if(user is null)
+            {
+                await LogAll("Message to non-Botifex user: " + message);
+            }
+            else
+            {
+                await user.Accounts[0].Messenger.SendMessageToUser(user.Accounts[0], message);
+            }
+        }
 
         private BotifexUser CreateOrFindUser(Interaction i)
         {
@@ -137,7 +144,6 @@ namespace Botifex
             }
             return user;
         }
-
 
         // assign a botifex user to the interaction and call the registered event for text messages
         internal void MessageReceived(object? sender, InteractionReceivedEventArgs e)

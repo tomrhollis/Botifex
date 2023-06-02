@@ -10,7 +10,7 @@ namespace Botifex.Services
 
         public Interaction CreateInteraction(InteractionSource source)
         {
-            if (source.Messenger is not DiscordService) throw new ArgumentException();
+            if (source.User.Messenger is not DiscordService) throw new ArgumentException();
 
             if (source.Message is SocketSlashCommand)
             {

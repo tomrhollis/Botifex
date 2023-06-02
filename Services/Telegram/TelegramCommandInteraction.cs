@@ -20,7 +20,7 @@ namespace Botifex.Services
 
             if(initialCommand?.Chat.Type != Telegram.Bot.Types.Enums.ChatType.Private && !command.AdminOnly)
             {
-                source.Messenger.Reply(this, "That command is not allowed in group chats, try DMs!").Wait();
+                source.User.Messenger.Reply(this, "That command is not allowed in group chats, try DMs!").Wait();
                 End().Wait();
             } 
             else
@@ -61,7 +61,7 @@ namespace Botifex.Services
 
         internal async Task FollowUp(string text)
         {
-            await ((TelegramService)Source.Messenger).Reply(this, text);
+            await ((TelegramService)Source.User.Messenger).Reply(this, text);
             IsProcessing = false;
         }
 

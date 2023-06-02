@@ -2,7 +2,7 @@
 
 namespace Botifex.Services
 {
-    internal class TelegramTextInteraction : TelegramInteraction, ITextInteraction
+    public class TelegramTextInteraction : TelegramInteraction, ITextInteraction
     {
         private Message? initialMessage;
         public string Text { get => initialMessage?.Text ?? ""; }
