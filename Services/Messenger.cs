@@ -44,6 +44,8 @@ namespace Botifex.Services
 
         internal abstract Task SendOneTimeStatus(string s, bool n);
 
+        internal abstract Task ReplaceStatus(string s);
+
         internal virtual string Truncate(string text) => (text.Length > (MAX_TEXT_LENGTH - 5) ? text.Substring(0, MAX_TEXT_LENGTH - 5) + "..." : text);
         internal abstract Task SendMessageToUser(IMessengerUser messengerUser, string message);
 

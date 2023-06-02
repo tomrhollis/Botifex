@@ -392,5 +392,23 @@ namespace Botifex.Services
 
             await SendNewMessage(new ChatId(((TelegramUser)user).Account.Id), message);
         }
+
+        /// <summary>
+        /// Replace the current status message with specific text, then start over with a new status message below it
+        /// </summary>
+        /// <param name="text">The text to replace the old message with</param>
+        /// <returns><see cref="Task.CompletedTask"/></returns>
+        internal override async Task ReplaceStatus(string text)
+        {
+            // nothing to update?
+            if (OngoingStatusMessageId == 0 || StatusChannel is null) return;
+            int oldStatusId = OngoingStatusMessageId;
+
+            // make a copy of the old status in the same channel
+            OngoingStatusMessageId = (await Bot.CopyMessageAsync(StatusChannel, StatusChannel, OngoingStatusMessageId, disableNotification: true)).Id;
+
+            // replace the text of the old status message
+            await Bot.EditMessageTextAsync(StatusChannel, oldStatusId, text);
+        }
     }
 }

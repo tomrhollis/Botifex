@@ -354,5 +354,23 @@ namespace Botifex.Services
             
             await ((DiscordUser)user).Account.SendMessageAsync(Truncate(message));
         }
+
+        /// <summary>
+        /// Replace the current status message with specific text, then start over with a new status message below it
+        /// </summary>
+        /// <param name="text">The text to replace the old message with</param>
+        /// <returns><see cref="Task.CompletedTask"/></returns>
+        internal override async Task ReplaceStatus(string text)
+        {
+            if (StatusMessageId == 0 || StatusChannel is null) return; // nothing to edit
+
+            // save the old message text before replacing it
+            string status = (await StatusChannel.GetMessageAsync(StatusMessageId)).Content;
+            await CreateOrUpdateStatus(text);
+
+            // make the new message
+            StatusMessageId = 0;
+            await CreateOrUpdateStatus(status);            
+        }
     }
 }
