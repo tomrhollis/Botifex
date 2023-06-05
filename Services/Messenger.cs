@@ -32,7 +32,6 @@ namespace Botifex.Services
         }
         internal abstract Task Log(string m, LogLevel i);
 
-        internal abstract void OnStarted();
         internal abstract void OnStopping();
         internal abstract void OnStopped();
 

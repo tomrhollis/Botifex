@@ -36,7 +36,6 @@ namespace Botifex.Services
             this.log = log;
             this.interactionFactory = new TelegramInteractionFactory(lib);
             
-            appLifetime.ApplicationStarted.Register(OnStarted);
             appLifetime.ApplicationStopping.Register(OnStopping);
             appLifetime.ApplicationStopped.Register(OnStopped);
 
@@ -50,18 +49,14 @@ namespace Botifex.Services
             if (statusChannelId != 0) StatusChannel = new ChatId(statusChannelId);
 
             adminNames = config.GetSection("TelegramAdminAllowlist").Get<string[]>()?.ToList() ?? new List<string>();
-        }
 
-        internal override async void OnStarted()
-        {
-            log.LogDebug("OnStarted has been called.");
             try
             {
                 // start listening
                 Bot.StartReceiving(updateHandler: OnUpdateReceived,
                                    pollingErrorHandler: OnErrorReceived);
 
-                BotUsername = (await Bot.GetMeAsync()).Username ?? "";
+                BotUsername = (Bot.GetMeAsync().Result).Username ?? "";
 
                 IsReady = true;
                 FinalizeFirstReady(EventArgs.Empty);
@@ -71,7 +66,7 @@ namespace Botifex.Services
             catch (Exception ex)
             {
                 log.LogError($"[{DateTime.Now}] {ex.GetType()} - {ex.Message}");
-            }            
+            }
         }
 
         internal override /*async*/ void OnStopping()

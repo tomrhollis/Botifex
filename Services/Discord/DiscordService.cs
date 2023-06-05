@@ -32,21 +32,18 @@ namespace Botifex.Services
             this.log = log;
             this.interactionFactory = new DiscordInteractionFactory(lib);
 
-            appLifetime.ApplicationStarted.Register(OnStarted);
             appLifetime.ApplicationStopping.Register(OnStopping);
             appLifetime.ApplicationStopped.Register(OnStopped);
 
             DiscordClient = new DiscordSocketClient(new DiscordSocketConfig() { AlwaysDownloadUsers = true });
             DiscordClient.Log += DiscordLog;
             DiscordClient.Ready += OnConnect;
-        }
 
-        internal override async void OnStarted()
-        {
-            log.LogDebug("OnStarted has been called.");
-            if (String.IsNullOrEmpty(config.GetValue<string>("DiscordBotToken"))) return;
-            await DiscordClient.LoginAsync(TokenType.Bot, config.GetValue<string>("DiscordBotToken"));
-            await DiscordClient.StartAsync();
+            if (!String.IsNullOrEmpty(config.GetValue<string>("DiscordBotToken")))
+            {
+                DiscordClient.LoginAsync(TokenType.Bot, config.GetValue<string>("DiscordBotToken")).Wait();
+                DiscordClient.StartAsync().Wait();
+            }
         }
 
         internal override async void OnStopping()
