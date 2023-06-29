@@ -1,5 +1,7 @@
 ﻿using Botifex.Models;
 using Botifex.Services;
+using Botifex.Services.Discord;
+using Botifex.Services.TelegramBot;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -26,7 +28,7 @@ namespace Botifex
             config = cfg;
             this.log = log;
             commandLibrary = lib;
-            messengers = new Messenger[] { (Services.DiscordService)dc, (Services.TelegramService)tg };
+            messengers = new Messenger[] { (DiscordService)dc, (TelegramService)tg };
 
             appLifetime.ApplicationStarted.Register(OnStarted);
             appLifetime.ApplicationStopping.Register(OnStopping);

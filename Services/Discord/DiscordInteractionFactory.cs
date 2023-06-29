@@ -1,7 +1,7 @@
 ﻿using Discord.WebSocket;
 
 
-namespace Botifex.Services
+namespace Botifex.Services.Discord
 {
     internal class DiscordInteractionFactory : IInteractionFactory
     {

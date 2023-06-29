@@ -7,19 +7,20 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 using Telegram.Bot.Exceptions;
 
-namespace Botifex.Services
+namespace Botifex.Services.TelegramBot
 {
     internal class TelegramService : Messenger, ITelegram
     {
         private bool isReady = false;
         public override bool IsReady { get => isReady && Bot is not null; protected private set=>isReady=value; }
         public TelegramBotClient Bot { get; private set; }
-        public ChatId? LogChannel { get; private set; }
+        public Channel? LogChannel { get; private set; }
         private Message? LogMessage { get; set; }
-        public ChatId? StatusChannel { get; private set; }
+        public Channel? StatusChannel { get; private set; }
         private int OngoingStatusMessageId { get; set; } = 0;
 
         private List<TelegramInteraction> activeInteractions = new List<TelegramInteraction>();
+        private Dictionary<long, Channel> channelLibrary = new Dictionary<long, Channel>();
 
         private List<string> adminNames;
         
@@ -43,10 +44,10 @@ namespace Botifex.Services
             Bot = new TelegramBotClient(config.GetValue<string>("TelegramBotToken")!);
 
             long logChannelId = config.GetValue<long>("TelegramLogChannel");
-            if (logChannelId != 0) LogChannel = new ChatId(logChannelId);
+            if (logChannelId != 0) LogChannel = new Channel(Bot, logChannelId);
 
             long statusChannelId = config.GetValue<long>("TelegramStatusChannel");
-            if (statusChannelId != 0) StatusChannel = new ChatId(statusChannelId);
+            if (statusChannelId != 0) StatusChannel = new Channel(Bot, statusChannelId);
 
             adminNames = config.GetSection("TelegramAdminAllowlist").Get<string[]>()?.ToList() ?? new List<string>();
 
@@ -83,15 +84,26 @@ namespace Botifex.Services
             log.LogDebug("OnStopped has been called.");
         }
 
-        internal override async Task Log(string m, LogLevel i = LogLevel.Information)
+        internal override Task Log(string m, LogLevel i = LogLevel.Information)
         {
             // log to console
             log.Log(i, m);
 
             // if we can log to the log channel
             if (IsReady && LogChannel is not null)
-                // append to an existing message to save new message limit, make new one if there isn't one yet
-                LogMessage = (LogMessage is not null) ? await AppendText(LogMessage, m) : await SendNewMessage(LogChannel, m);
+                // append to an existing message or make new one if there isn't one yet
+                if (LogMessage is null)
+                    LogChannel.Send(m, callback: (message) =>
+                    {
+                        LogMessage = message;
+                    });
+                else
+                    AppendText(LogMessage, m, callback: new Action<Message>((m) =>
+                    {
+                        LogMessage = m;
+                    }));
+            
+            return Task.CompletedTask;
         }
 
         private Task OnErrorReceived(ITelegramBotClient bot, Exception ex, CancellationToken cToken)
@@ -111,8 +123,13 @@ namespace Botifex.Services
                 && !Regex.Match(data.Message.Text.ToLower(), $"@{BotUsername.ToLower()}").Success)
                 return;
 
+            // log the channel in the channel library if necessary
+            if (!channelLibrary.Keys.Contains(data.Message.Chat.Id))
+                channelLibrary[data.Message.Chat.Id] = new Channel(Bot, data.Message.Chat.Id);
+
             TelegramUser user = new TelegramUser(this, data.Message.From);
             Chat chat = data.Message.Chat;
+            Channel channel = channelLibrary[chat.Id];
 
             // if there's an existing command waiting for response already, see if this is related to that       
             TelegramInteraction? existingInteraction = activeInteractions.SingleOrDefault(i => ((TelegramUser)i.Source.User).Account.Id == user.Account.Id && ((Message?)i.Source.Message)?.Chat.Id == chat.Id);
@@ -150,7 +167,7 @@ namespace Botifex.Services
                     if (((TelegramCommandInteraction)existingInteraction).IsReady)
                         FinalizeCommandReceived(new InteractionReceivedEventArgs(existingInteraction));
 
-                    await Bot.DeleteMessageAsync(new ChatId(chat.Id), data.Message!.MessageId);
+                    channel.Delete(data.Message!.MessageId);                    
                     return;
                 }
                 // otherwise end the previous incomplete interaction so the rest of this code can start a new one
@@ -168,7 +185,7 @@ namespace Botifex.Services
                     await existingInteraction!.End();
 
                 activeInteractions.Add(newInteraction);
-                await Bot.SendChatActionAsync(data.Message.Chat.Id, Telegram.Bot.Types.Enums.ChatAction.Typing);
+                //channelLibrary[data.Message.Chat.Id].DoTyping();
                 if (newInteraction is TelegramCommandInteraction && ((TelegramCommandInteraction)newInteraction).IsReady)
                 {
                     string username = ((TelegramUser)((TelegramCommandInteraction)newInteraction).Source.User).Account.Username ?? "";
@@ -221,55 +238,53 @@ namespace Botifex.Services
             if(adminCommands.Count > 0)
             {                
                 if (StatusChannel is not null) 
-                    await Bot.SetMyCommandsAsync(adminCommands, BotCommandScope.ChatAdministrators(StatusChannel));
+                    await Bot.SetMyCommandsAsync(adminCommands, BotCommandScope.ChatAdministrators(StatusChannel.Id));
                 
                 if (LogChannel is not null) 
-                    await Bot.SetMyCommandsAsync(adminCommands, BotCommandScope.ChatAdministrators(LogChannel));
+                    await Bot.SetMyCommandsAsync(adminCommands, BotCommandScope.ChatAdministrators(LogChannel.Id));
             }
             
             await Bot.SetMyCommandsAsync(userCommands, BotCommandScope.AllPrivateChats());
         }
 
-        internal override async Task CreateOrUpdateStatus(string statusText)
+        internal override Task CreateOrUpdateStatus(string statusText)
         {
-            if (!IsReady || StatusChannel is null) return;
+            if (!IsReady || StatusChannel is null) return Task.CompletedTask;
 
             try
             {
                 if (OngoingStatusMessageId == 0)
-                    OngoingStatusMessageId = (await SendNewMessage(StatusChannel, statusText)).MessageId;
+                    StatusChannel.Send(statusText, callback: new Action<Message>((m) =>
+                    {
+                        OngoingStatusMessageId = m.MessageId;
+                    }));
 
-                else if (StatusChannel.Identifier is not null)
-                    await Bot.EditMessageTextAsync(StatusChannel, OngoingStatusMessageId, Truncate(statusText));
+                else if (StatusChannel is not null)
+                    StatusChannel.Edit(OngoingStatusMessageId, Truncate(statusText));
             }
             catch(Exception) 
             {
                 // ignore
             }
-
-
+            return Task.CompletedTask;
         }
 
-        internal override async Task SendOneTimeStatus(string statusText, bool notification = false)
+        internal override Task SendOneTimeStatus(string statusText, bool notification = false)
         {
-            if (!IsReady || StatusChannel is null) return;
+            if (!IsReady || StatusChannel is null) return Task.CompletedTask;
 
-            int messageId = (await SendNewMessage(StatusChannel, statusText)).MessageId;
-#if DEBUG
-            notification = false; // to stop spamming while testing other things
-#endif
-            if (notification)
+            StatusChannel.Send(statusText, callback: new Action<Message>(async (message) =>
             {
-                await Bot.PinChatMessageAsync(StatusChannel, messageId, disableNotification: false);
-                Thread.Sleep(3000);
-                await Bot.UnpinChatMessageAsync(StatusChannel, messageId);
-            }
+                StatusChannel.Pin(message.MessageId, disableNotification: false);
+                StatusChannel.Unpin(message.MessageId);
+            }));
+            return Task.CompletedTask;
         }
 
 
-        internal override async Task Reply(Interaction interaction, string text)
+        internal override Task Reply(Interaction interaction, string text)
         {
-            if (!IsReady || interaction.Source.Message is null) return;
+            if (!IsReady || interaction.Source.Message is null) return Task.CompletedTask;
 
             Message userMessage = (Message)interaction.Source.Message;
             Message? botMessage = (Message?)interaction.BotMessage;
@@ -279,26 +294,28 @@ namespace Botifex.Services
             if (interaction.Menu is not null)
             {
                 interaction.Menu = null;
-                await Bot.DeleteMessageAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId);
+
+                channelLibrary[botMessage!.Chat.Id].Delete(botMessage.MessageId);
                 interaction.BotMessage = null;                
             }
 
             if (interaction.BotMessage is not null)
-            {
-                try
+                channelLibrary[botMessage!.Chat.Id].Edit(botMessage.MessageId, Truncate(text), callback: new Action<Message>((m) =>
                 {
-                    interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId, Truncate(text));
-                }
-                catch (ApiRequestException) { } // this occurs when they're typing too fast and get ahead of responses. Ignores the impatient texts
-            }
+                    interaction.BotMessage = m;
+                }));
             else
-                interaction.BotMessage = await SendNewMessage(userMessage.Chat.Id, text, replyToMessageId: userMessage.MessageId);
+                channelLibrary[userMessage.Chat.Id].Send(text, replyToMessageId: userMessage.MessageId, callback: new Action<Message>((m) =>
+                {
+                    interaction.BotMessage = m;
+                }));
+            return Task.CompletedTask;
         }
 
-        internal override async Task ReplyWithOptions(Interaction interaction, string? text)
+        internal override Task ReplyWithOptions(Interaction interaction, string? text)
         {
             text = text ?? string.Empty;
-            if (!IsReady || interaction.Source.Message is null) return;
+            if (!IsReady || interaction.Source.Message is null) return Task.CompletedTask;
 
             Message userMessage = (Message)interaction.Source.Message;
 
@@ -306,10 +323,10 @@ namespace Botifex.Services
             ReplyKeyboardMarkup? keyboard = null;
             if (interaction.Menu is not null && interaction.Menu.Options.Any())
             {
-                for(int i=0; i<interaction.Menu.Options.Count; i++)
+                for (int i = 0; i < interaction.Menu.Options.Count; i++)
                 {
-                    buttons.Add(new KeyboardButton($"{(interaction.Menu.NumberedChoices ? i+1 : interaction.Menu.Options.Keys.ToArray()[i])}"));
-                    
+                    buttons.Add(new KeyboardButton($"{(interaction.Menu.NumberedChoices ? i + 1 : interaction.Menu.Options.Keys.ToArray()[i])}"));
+
                 }
                 keyboard = new ReplyKeyboardMarkup(buttons);
                 keyboard.ResizeKeyboard = true;
@@ -326,47 +343,37 @@ namespace Botifex.Services
             // if we're sending a keyboard with this, we have to start fresh. can't edit a keyboard into an existing message with this library
             if (keyboard is not null && botMessage is not null)
             {
-                await Bot.DeleteMessageAsync(new ChatId(botMessage.Chat.Id), botMessage.MessageId);
+                channelLibrary[botMessage.Chat.Id].Delete(botMessage.MessageId);
                 interaction.BotMessage = null;
             }
 
             if (interaction.BotMessage is not null)
-            {
-                try
+                channelLibrary[botMessage!.Chat.Id].Edit(botMessage.MessageId, Truncate(text), callback: new Action<Message>((m) =>
                 {
-                    interaction.BotMessage = await Bot.EditMessageTextAsync(new ChatId(botMessage!.Chat.Id), botMessage.MessageId, Truncate(text));
-                }
-                catch (ApiRequestException) { } // this occurs when they're typing too fast and get ahead of responses. Ignores the impatient texts
-            }                
+                    interaction.BotMessage = m;
+                }));
             else
-                interaction.BotMessage = await SendNewMessage(userMessage.Chat.Id, text, replyToMessageId: userMessage.MessageId, markup: keyboard);
+                channelLibrary[userMessage.Chat.Id].Send(text, replyToMessageId: userMessage.MessageId, markup: keyboard, callback: new Action<Message>((m) =>
+                {
+                    interaction.BotMessage = m;
+                }));
+            return Task.CompletedTask;
         }
 
-        // separating this out now because it'll all have to go through an API queue eventually
-        private async Task<Message> SendNewMessage(ChatId chatId, string text, int? replyToMessageId = null, ReplyKeyboardMarkup? markup = null) 
+        private Task AppendText(Message existingMessage, string text, Action<Message>? callback = null)
         {
-            Message newMessage = new Message();
-            try
-            {
-                newMessage = await Bot.SendTextMessageAsync(chatId, Truncate(text), replyToMessageId: replyToMessageId, replyMarkup: markup);
-            }
-            catch(ApiRequestException) // this can occur on restart sometimes or if the user deletes a message before a response comes back
-            {
-                newMessage = await Bot.SendTextMessageAsync(chatId, Truncate(text), replyMarkup: markup);
-            }
-            return newMessage;
-        }
+            Channel channel = channelLibrary[existingMessage.Chat.Id];
 
-        private async Task<Message> AppendText(Message existingMessage, string text)
-        {
             if ((existingMessage.Text?.Length + text.Length) < (MAX_TEXT_LENGTH - 2))
-                return await Bot.EditMessageTextAsync(new ChatId(existingMessage.Chat.Id), existingMessage.MessageId, existingMessage.Text + "\n" + text);
+                channel.Edit(existingMessage.MessageId, existingMessage.Text + "\n" + text, callback: callback);
 
             else
-                return await SendNewMessage(new ChatId(existingMessage.Chat.Id), text);
+                channel.Send(text, callback: callback);
+
+            return Task.CompletedTask;
         }
 
-        internal override async Task RemoveInteraction(Interaction i)
+        internal override Task RemoveInteraction(Interaction i)
         {
             if (i is not TelegramInteraction) throw new ArgumentException();
 
@@ -376,16 +383,23 @@ namespace Botifex.Services
             if (i.BotMessage is not null && i.Menu is not null)
             {
                 Message message = (Message)interaction.BotMessage!;
-                await Bot.DeleteMessageAsync(new ChatId(message.Chat.Id), message.MessageId);
-                await Bot.SendTextMessageAsync(new ChatId(message.Chat.Id), ((Message)i.BotMessage).Text!, replyToMessageId: ((Message)i.Source.Message!).MessageId, disableNotification: true);
+                channelLibrary[message.Chat.Id].Delete(message.MessageId);
+                channelLibrary[message.Chat.Id].Send(((Message)i.BotMessage).Text!, replyToMessageId: ((Message)i.Source.Message!).MessageId, disableNotification: true);
             }
+            return Task.CompletedTask;
         }
 
-        internal override async Task SendMessageToUser(IMessengerUser user, string message)
+        internal override Task SendMessageToUser(IMessengerUser user, string message)
         {
             if(user is not TelegramUser) throw new ArgumentException();
 
-            await SendNewMessage(new ChatId(((TelegramUser)user).Account.Id), message);
+            long userId = ((TelegramUser)user).Account.Id;
+            // log the channel in the channel library if necessary (this shouldn't be necessary but just in case)
+            if (!channelLibrary.Keys.Contains(userId))
+                channelLibrary[userId] = new Channel(Bot, userId);
+
+            channelLibrary[userId].Send(message);
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -393,17 +407,21 @@ namespace Botifex.Services
         /// </summary>
         /// <param name="text">The text to replace the old message with</param>
         /// <returns><see cref="Task.CompletedTask"/></returns>
-        internal override async Task ReplaceStatus(string text)
+        internal override Task ReplaceStatus(string text)
         {
             // nothing to update?
-            if (OngoingStatusMessageId == 0 || StatusChannel is null) return;
+            if (OngoingStatusMessageId == 0 || StatusChannel is null) return Task.CompletedTask;
             int oldStatusId = OngoingStatusMessageId;
 
             // make a copy of the old status in the same channel
-            OngoingStatusMessageId = (await Bot.CopyMessageAsync(StatusChannel, StatusChannel, OngoingStatusMessageId, disableNotification: true)).Id;
+            StatusChannel.Copy(OngoingStatusMessageId, disableNotification: true, callback: new Action<MessageId>((id) =>
+            {
+                OngoingStatusMessageId = id.Id;
+            }));
 
             // replace the text of the old status message
-            await Bot.EditMessageTextAsync(StatusChannel, oldStatusId, text);
+            StatusChannel.Edit(oldStatusId, text);
+            return Task.CompletedTask;
         }
     }
 }

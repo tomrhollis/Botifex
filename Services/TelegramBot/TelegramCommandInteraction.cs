@@ -1,9 +1,7 @@
-﻿
-
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Telegram.Bot.Types;
 
-namespace Botifex.Services
+namespace Botifex.Services.TelegramBot
 {
     internal class TelegramCommandInteraction : TelegramInteraction, ICommandInteraction
     {

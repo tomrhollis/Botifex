@@ -1,11 +1,13 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using Botifex.Services;
+using Botifex.Services.Discord;
+using Botifex.Services.TelegramBot;
+
 
 namespace Botifex
 {
     public static class BotifexServiceExtensions
     {
-        public static IServiceCollection AddMyClasses(this IServiceCollection services)
+        public static IServiceCollection AddBotifexClasses(this IServiceCollection services)
         {
             services.AddSingleton<IDiscord, DiscordService>()
                     .AddSingleton<ITelegram, TelegramService>()

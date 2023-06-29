@@ -1,7 +1,7 @@
 ﻿using Discord;
 using Discord.WebSocket;
 
-namespace Botifex.Services
+namespace Botifex.Services.Discord
 {
     public interface IDiscord
     {

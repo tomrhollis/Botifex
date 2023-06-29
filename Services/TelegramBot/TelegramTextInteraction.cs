@@ -1,6 +1,6 @@
 ﻿using Telegram.Bot.Types;
 
-namespace Botifex.Services
+namespace Botifex.Services.TelegramBot
 {
     public class TelegramTextInteraction : TelegramInteraction, ITextInteraction
     {

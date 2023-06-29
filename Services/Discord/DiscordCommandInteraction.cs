@@ -2,7 +2,7 @@
 
 using Discord.WebSocket;
 
-namespace Botifex.Services
+namespace Botifex.Services.Discord
 {
     internal class DiscordCommandInteraction : DiscordInteraction, ICommandInteraction
     {

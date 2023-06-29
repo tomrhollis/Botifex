@@ -6,7 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 
-namespace Botifex.Services
+namespace Botifex.Services.Discord
 {
     public class DiscordService : Messenger, IDiscord
     {
@@ -43,6 +43,7 @@ namespace Botifex.Services
             {
                 DiscordClient.LoginAsync(TokenType.Bot, config.GetValue<string>("DiscordBotToken")).Wait();
                 DiscordClient.StartAsync().Wait();
+                Log("Yip Yip", LogLevel.Information).Wait();
             }
         }
 
