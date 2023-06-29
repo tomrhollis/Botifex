@@ -5,7 +5,6 @@ using System.Text.RegularExpressions;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
-using Telegram.Bot.Exceptions;
 
 namespace Botifex.Services.TelegramBot
 {
@@ -44,10 +43,18 @@ namespace Botifex.Services.TelegramBot
             Bot = new TelegramBotClient(config.GetValue<string>("TelegramBotToken")!);
 
             long logChannelId = config.GetValue<long>("TelegramLogChannel");
-            if (logChannelId != 0) LogChannel = new Channel(Bot, logChannelId);
+            if (logChannelId != 0)
+            {
+                LogChannel = new Channel(Bot, logChannelId);
+                channelLibrary.Add(logChannelId, LogChannel);
+            }
 
             long statusChannelId = config.GetValue<long>("TelegramStatusChannel");
-            if (statusChannelId != 0) StatusChannel = new Channel(Bot, statusChannelId);
+            if (statusChannelId != 0)
+            {
+                StatusChannel = new Channel(Bot, statusChannelId);
+                channelLibrary.Add(statusChannelId, StatusChannel);
+            }   
 
             adminNames = config.GetSection("TelegramAdminAllowlist").Get<string[]>()?.ToList() ?? new List<string>();
 
@@ -273,21 +280,21 @@ namespace Botifex.Services.TelegramBot
         {
             if (!IsReady || StatusChannel is null) return Task.CompletedTask;
 
-            StatusChannel.Send(statusText, callback: new Action<Message>(async (message) =>
+            StatusChannel.Send(statusText, callback: new Action<Message>((message) =>
             {
                 StatusChannel.Pin(message.MessageId, disableNotification: false);
                 StatusChannel.Unpin(message.MessageId);
             }));
             return Task.CompletedTask;
         }
-
-
+            
         internal override Task Reply(Interaction interaction, string text)
         {
             if (!IsReady || interaction.Source.Message is null) return Task.CompletedTask;
 
             Message userMessage = (Message)interaction.Source.Message;
             Message? botMessage = (Message?)interaction.BotMessage;
+            Channel channel = channelLibrary[userMessage.Chat.Id];
 
             // if this is a result of a menu selection, clear out the response message so the menu can go away. 
             // It will fall through to sending a new message in the next if/else
@@ -295,17 +302,17 @@ namespace Botifex.Services.TelegramBot
             {
                 interaction.Menu = null;
 
-                channelLibrary[botMessage!.Chat.Id].Delete(botMessage.MessageId);
-                interaction.BotMessage = null;                
+                channel.Delete(botMessage!.MessageId); // if there's a menu, there should be a bot message too
+                interaction.BotMessage = null;
             }
 
             if (interaction.BotMessage is not null)
-                channelLibrary[botMessage!.Chat.Id].Edit(botMessage.MessageId, Truncate(text), callback: new Action<Message>((m) =>
+                channel.Edit(botMessage!.MessageId, Truncate(text), callback: new Action<Message>((m) =>
                 {
                     interaction.BotMessage = m;
                 }));
             else
-                channelLibrary[userMessage.Chat.Id].Send(text, replyToMessageId: userMessage.MessageId, callback: new Action<Message>((m) =>
+                channel.Send(text, replyToMessageId: userMessage.MessageId, callback: new Action<Message>((m) =>
                 {
                     interaction.BotMessage = m;
                 }));
@@ -318,6 +325,7 @@ namespace Botifex.Services.TelegramBot
             if (!IsReady || interaction.Source.Message is null) return Task.CompletedTask;
 
             Message userMessage = (Message)interaction.Source.Message;
+            Channel channel = channelLibrary[userMessage.Chat.Id];
 
             List<KeyboardButton> buttons = new List<KeyboardButton>();
             ReplyKeyboardMarkup? keyboard = null;
@@ -339,24 +347,24 @@ namespace Botifex.Services.TelegramBot
             }
 
             Message? botMessage = (Message?)interaction.BotMessage;
+            int messageId = botMessage?.MessageId ?? 0;
 
-            // if we're sending a keyboard with this, we have to start fresh. can't edit a keyboard into an existing message with this library
-            if (keyboard is not null && botMessage is not null)
-            {
-                channelLibrary[botMessage.Chat.Id].Delete(botMessage.MessageId);
-                interaction.BotMessage = null;
-            }
-
-            if (interaction.BotMessage is not null)
-                channelLibrary[botMessage!.Chat.Id].Edit(botMessage.MessageId, Truncate(text), callback: new Action<Message>((m) =>
+            if (botMessage is not null && keyboard is null)
+                channel.Edit(messageId, Truncate(text), callback: new Action<Message>((m) =>
                 {
                     interaction.BotMessage = m;
                 }));
             else
-                channelLibrary[userMessage.Chat.Id].Send(text, replyToMessageId: userMessage.MessageId, markup: keyboard, callback: new Action<Message>((m) =>
+                channel.Send(text, replyToMessageId: userMessage.MessageId, markup: keyboard, callback: new Action<Message>((m) =>
                 {
                     interaction.BotMessage = m;
                 }));
+
+            // if we sent a keyboard with this, we had to start fresh so can delete the original message.
+            // (can't edit a keyboard into an existing message with this library)
+            if (keyboard is not null && messageId != 0)
+                channel.Delete(messageId);
+
             return Task.CompletedTask;
         }
 

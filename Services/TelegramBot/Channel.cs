@@ -1,11 +1,4 @@
-﻿using Discord;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Channels;
-using System.Threading.Tasks;
+﻿using System.Collections.Concurrent;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
@@ -15,8 +8,10 @@ namespace Botifex.Services.TelegramBot
 {
     internal class Channel
     {
-        private static readonly int API_LIMIT = 3000;
-        private DateTime lastSent = DateTime.MinValue;
+        private static readonly int API_LIMIT = 3000; // telegram will get mad if you send more than 20 messages a minute
+                                                      // it's unclear if that's just messages or any interaction with a channel
+                                                      // erring on the safe side and queueing ALL interactions with a channel,
+                                                      // handling them once every 3 seconds
         private ConcurrentQueue<Task> messageQueue = new();
         private Task apiWorker;
         private TelegramBotClient bot;
