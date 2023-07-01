@@ -3,7 +3,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using Telegram.Bot;
+using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Botifex.Services.TelegramBot
@@ -60,8 +62,13 @@ namespace Botifex.Services.TelegramBot
 
             try
             {
+                // ignore anything that came in before we started
+                ReceiverOptions options = new ReceiverOptions();
+                options.ThrowPendingUpdates = true;
+
                 // start listening
-                Bot.StartReceiving(updateHandler: OnUpdateReceived,
+                Bot.StartReceiving(receiverOptions: options,
+                                   updateHandler: OnUpdateReceived,
                                    pollingErrorHandler: OnErrorReceived);
 
                 BotUsername = (Bot.GetMeAsync().Result).Username ?? "";
