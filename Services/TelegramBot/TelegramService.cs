@@ -23,6 +23,7 @@ namespace Botifex.Services.TelegramBot
         private Dictionary<long, Channel> channelLibrary = new Dictionary<long, Channel>();
 
         private List<string> adminNames;
+        private bool newMembers = false;
         
         internal override int MAX_TEXT_LENGTH { get => 4096; }
         private ILogger<TelegramService> log;
@@ -134,10 +135,12 @@ namespace Botifex.Services.TelegramBot
             // keep groups clear of join/leave messages - TODO: make this a toggleable setting
             if (data.Message.Type == MessageType.ChatMembersAdded || data.Message.Type == MessageType.ChatMemberLeft)
             {
+                if (data.Message.Type == MessageType.ChatMembersAdded)
+                    newMembers = true;
+
                 channel.Delete(data.Message.MessageId);
                 return;
             }
-
 
             // ignore if no identifiable user
             if (data.Message?.From is null || String.IsNullOrEmpty(data.Message?.Text)) return;
@@ -278,12 +281,20 @@ namespace Botifex.Services.TelegramBot
                         OngoingStatusMessage = m;
                     }));
 
-                else if (StatusChannel is not null)
+                else if (!newMembers) // if no new people have joined, just edit it
                 {
                     StatusChannel.Edit(OngoingStatusMessage.MessageId, Truncate(statusText));
                     OngoingStatusMessage.Text = Truncate(statusText);
                 }
-                    
+                else // if new people have joined, repost it because often new people can't see old messages
+                {
+                    int oldMessageId = OngoingStatusMessage.MessageId;
+                    StatusChannel.Send(Truncate(statusText), callback: new Action<Message>((m) =>
+                    {
+                        StatusChannel.Delete(oldMessageId);
+                        OngoingStatusMessage = m;
+                    }));                    
+                }                    
             }
             catch(Exception) 
             {
@@ -446,7 +457,7 @@ namespace Botifex.Services.TelegramBot
             }));
 
             // replace the text of the old status message
-            StatusChannel.Edit(oldStatusId, text);
+            StatusChannel.Edit(oldStatusId, Truncate(text));
             return Task.CompletedTask;
         }
     }
