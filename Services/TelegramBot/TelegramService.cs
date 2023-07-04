@@ -23,7 +23,6 @@ namespace Botifex.Services.TelegramBot
         private Dictionary<long, Channel> channelLibrary = new Dictionary<long, Channel>();
 
         private List<string> adminNames;
-        private bool newMembers = false;
         
         internal override int MAX_TEXT_LENGTH { get => 4096; }
         private ILogger<TelegramService> log;
@@ -136,7 +135,7 @@ namespace Botifex.Services.TelegramBot
             if (data.Message.Type == MessageType.ChatMembersAdded || data.Message.Type == MessageType.ChatMemberLeft)
             {
                 if (data.Message.Type == MessageType.ChatMembersAdded)
-                    newMembers = true;
+                    await ReplaceStatus(""); // redo status message when a new person joins
 
                 channel.Delete(data.Message.MessageId);
                 return;
@@ -280,21 +279,11 @@ namespace Botifex.Services.TelegramBot
                     {
                         OngoingStatusMessage = m;
                     }));
-
-                else if (!newMembers) // if no new people have joined, just edit it
+                else
                 {
                     StatusChannel.Edit(OngoingStatusMessage.MessageId, Truncate(statusText));
                     OngoingStatusMessage.Text = Truncate(statusText);
-                }
-                else // if new people have joined, repost it because often new people can't see old messages
-                {
-                    int oldMessageId = OngoingStatusMessage.MessageId;
-                    StatusChannel.Send(Truncate(statusText), callback: new Action<Message>((m) =>
-                    {
-                        StatusChannel.Delete(oldMessageId);
-                        OngoingStatusMessage = m;
-                    }));                    
-                }                    
+                }      
             }
             catch(Exception) 
             {
@@ -457,7 +446,11 @@ namespace Botifex.Services.TelegramBot
             }));
 
             // replace the text of the old status message
-            StatusChannel.Edit(oldStatusId, Truncate(text));
+            if(string.IsNullOrEmpty(text))
+                StatusChannel.Delete(oldStatusId);
+            else
+                StatusChannel.Edit(oldStatusId, Truncate(text));
+
             return Task.CompletedTask;
         }
     }
