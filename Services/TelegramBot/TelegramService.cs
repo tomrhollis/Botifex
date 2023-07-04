@@ -53,8 +53,13 @@ namespace Botifex.Services.TelegramBot
             long statusChannelId = config.GetValue<long>("TelegramStatusChannel");
             if (statusChannelId != 0)
             {
-                StatusChannel = new Channel(Bot, statusChannelId);
-                channelLibrary.Add(statusChannelId, StatusChannel);
+                if (statusChannelId != logChannelId)
+                {
+                    StatusChannel = new Channel(Bot, statusChannelId);
+                    channelLibrary.Add(statusChannelId, StatusChannel);
+                }
+                else
+                    StatusChannel = LogChannel;                
             }   
 
             adminNames = config.GetSection("TelegramAdminAllowlist").Get<string[]>()?.ToList() ?? new List<string>();
@@ -117,22 +122,33 @@ namespace Botifex.Services.TelegramBot
 
         private async Task OnUpdateReceived(ITelegramBotClient bot, Update data, CancellationToken cToken)
         {
-            // ignore if no identifiable user
-            if (data.Message?.From is null || String.IsNullOrEmpty(data.Message?.Text)) return;
-
-            // ignore if in a group chat and not targeted
-            if (data.Message.Chat.Type != Telegram.Bot.Types.Enums.ChatType.Private 
-                && data.Message.Chat.Type != Telegram.Bot.Types.Enums.ChatType.Sender
-                && !Regex.Match(data.Message.Text.ToLower(), $"@{BotUsername.ToLower()}").Success)
-                return;
+            if (data.Message is null) return;
+            Chat chat = data.Message.Chat;
 
             // log the channel in the channel library if necessary
             if (!channelLibrary.Keys.Contains(data.Message.Chat.Id))
                 channelLibrary[data.Message.Chat.Id] = new Channel(Bot, data.Message.Chat.Id);
 
-            TelegramUser user = new TelegramUser(this, data.Message.From);
-            Chat chat = data.Message.Chat;
             Channel channel = channelLibrary[chat.Id];
+
+            // keep groups clear of join/leave messages - TODO: make this a toggleable setting
+            if (data.Message.Type == MessageType.ChatMembersAdded || data.Message.Type == MessageType.ChatMemberLeft)
+            {
+                channel.Delete(data.Message.MessageId);
+                return;
+            }
+
+
+            // ignore if no identifiable user
+            if (data.Message?.From is null || String.IsNullOrEmpty(data.Message?.Text)) return;
+
+            // ignore if in a group chat and not targeted
+            if (data.Message.Chat.Type != Telegram.Bot.Types.Enums.ChatType.Private
+                && data.Message.Chat.Type != Telegram.Bot.Types.Enums.ChatType.Sender
+                && !Regex.Match(data.Message.Text.ToLower(), $"@{BotUsername.ToLower()}").Success)
+                return;
+
+            TelegramUser user = new TelegramUser(this, data.Message.From);            
 
             // if there's an existing command waiting for response already, see if this is related to that       
             TelegramInteraction? existingInteraction = activeInteractions.SingleOrDefault(i => ((TelegramUser)i.Source.User).Account.Id == user.Account.Id && ((Message?)i.Source.Message)?.Chat.Id == chat.Id);
@@ -263,7 +279,11 @@ namespace Botifex.Services.TelegramBot
                     }));
 
                 else if (StatusChannel is not null)
+                {
                     StatusChannel.Edit(OngoingStatusMessage.MessageId, Truncate(statusText));
+                    OngoingStatusMessage.Text = Truncate(statusText);
+                }
+                    
             }
             catch(Exception) 
             {
@@ -276,9 +296,9 @@ namespace Botifex.Services.TelegramBot
         {
             if (!IsReady || StatusChannel is null) return Task.CompletedTask;
 
-            StatusChannel.Send(statusText, callback: new Action<Message>((message) =>
+            StatusChannel.Send(statusText, callback: notification == false ? null : new Action<Message>((message) =>
             {
-                StatusChannel.Pin(message.MessageId, disableNotification: notification);
+                StatusChannel.Pin(message.MessageId, disableNotification: !notification);
                 StatusChannel.Unpin(message.MessageId);
             }));
             return Task.CompletedTask;
@@ -390,7 +410,7 @@ namespace Botifex.Services.TelegramBot
             {
                 Message message = (Message)interaction.BotMessage!;
                 channelLibrary[message.Chat.Id].Delete(message.MessageId);
-                channelLibrary[message.Chat.Id].Send(((Message)i.BotMessage).Text!, replyToMessageId: ((Message)i.Source.Message!).MessageId, disableNotification: true);
+                //channelLibrary[message.Chat.Id].Send(((Message)i.BotMessage).Text!, replyToMessageId: ((Message)i.Source.Message!).MessageId, disableNotification: true);
             }
             return Task.CompletedTask;
         }
