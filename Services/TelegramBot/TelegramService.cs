@@ -16,7 +16,6 @@ namespace Botifex.Services.TelegramBot
         public override bool IsReady { get => isReady && Bot is not null; protected private set=>isReady=value; }
         public TelegramBotClient Bot { get; private set; }
         public Channel? LogChannel { get; private set; }
-        private Message? LogMessage { get; set; }
         public Channel? StatusChannel { get; private set; }
         private int OngoingStatusMessageId { get; set; } = 0;
 
@@ -105,18 +104,8 @@ namespace Botifex.Services.TelegramBot
 
             // if we can log to the log channel
             if (IsReady && LogChannel is not null)
-                // append to an existing message or make new one if there isn't one yet
-                if (LogMessage is null)
-                    LogChannel.Send(m, callback: (message) =>
-                    {
-                        LogMessage = message;
-                    });
-                else
-                    AppendText(LogMessage, m, callback: new Action<Message>((m) =>
-                    {
-                        LogMessage = m;
-                    }));
-            
+                LogChannel.Send(m);
+
             return Task.CompletedTask;
         }
 
