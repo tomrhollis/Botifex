@@ -17,7 +17,7 @@ namespace Botifex.Services.TelegramBot
         public TelegramBotClient Bot { get; private set; }
         public Channel? LogChannel { get; private set; }
         public Channel? StatusChannel { get; private set; }
-        private int OngoingStatusMessageId { get; set; } = 0;
+        private Message? OngoingStatusMessage { get; set; }
 
         private List<TelegramInteraction> activeInteractions = new List<TelegramInteraction>();
         private Dictionary<long, Channel> channelLibrary = new Dictionary<long, Channel>();
@@ -252,18 +252,18 @@ namespace Botifex.Services.TelegramBot
 
         internal override Task CreateOrUpdateStatus(string statusText)
         {
-            if (!IsReady || StatusChannel is null) return Task.CompletedTask;
-
+            if (!IsReady || StatusChannel is null || statusText == OngoingStatusMessage?.Text) return Task.CompletedTask;
+                                                     // if the text is the same it'll throw an exception
             try
             {
-                if (OngoingStatusMessageId == 0)
-                    StatusChannel.Send(statusText, callback: new Action<Message>((m) =>
+                if (OngoingStatusMessage is null)
+                    StatusChannel.Send(Truncate(statusText), callback: new Action<Message>((m) =>
                     {
-                        OngoingStatusMessageId = m.MessageId;
+                        OngoingStatusMessage = m;
                     }));
 
                 else if (StatusChannel is not null)
-                    StatusChannel.Edit(OngoingStatusMessageId, Truncate(statusText));
+                    StatusChannel.Edit(OngoingStatusMessage.MessageId, Truncate(statusText));
             }
             catch(Exception) 
             {
@@ -278,7 +278,7 @@ namespace Botifex.Services.TelegramBot
 
             StatusChannel.Send(statusText, callback: new Action<Message>((message) =>
             {
-                StatusChannel.Pin(message.MessageId, disableNotification: false);
+                StatusChannel.Pin(message.MessageId, disableNotification: notification);
                 StatusChannel.Unpin(message.MessageId);
             }));
             return Task.CompletedTask;
@@ -364,6 +364,7 @@ namespace Botifex.Services.TelegramBot
             return Task.CompletedTask;
         }
 
+        /* Not used currently
         private Task AppendText(Message existingMessage, string text, Action<Message>? callback = null)
         {
             Channel channel = channelLibrary[existingMessage.Chat.Id];
@@ -376,6 +377,7 @@ namespace Botifex.Services.TelegramBot
 
             return Task.CompletedTask;
         }
+        */
 
         internal override Task RemoveInteraction(Interaction i)
         {
@@ -414,13 +416,13 @@ namespace Botifex.Services.TelegramBot
         internal override Task ReplaceStatus(string text)
         {
             // nothing to update?
-            if (OngoingStatusMessageId == 0 || StatusChannel is null) return Task.CompletedTask;
-            int oldStatusId = OngoingStatusMessageId;
+            if (OngoingStatusMessage is null || StatusChannel is null || OngoingStatusMessage.Text is null) return Task.CompletedTask;
+            int oldStatusId = OngoingStatusMessage.MessageId;
 
             // make a copy of the old status in the same channel
-            StatusChannel.Copy(OngoingStatusMessageId, disableNotification: true, callback: new Action<MessageId>((id) =>
+            StatusChannel.Send(OngoingStatusMessage.Text, disableNotification: true, callback: new Action<Message>((m) =>
             {
-                OngoingStatusMessageId = id.Id;
+                OngoingStatusMessage = m;
             }));
 
             // replace the text of the old status message
