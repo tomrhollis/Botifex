@@ -97,9 +97,16 @@ namespace Botifex.Services.TelegramBot
         {
             AddToQueue(new Task(async () =>
             {
-                var message = await bot.EditMessageTextAsync(Id, messageId, newText);
-                if(callback is not null)
-                    callback.Invoke(message);
+                try
+                {
+                    var message = await bot.EditMessageTextAsync(Id, messageId, newText);
+                    if (callback is not null)
+                        callback.Invoke(message);
+                }
+                catch (ApiRequestException)
+                {
+                    Send(newText, callback: callback);
+                }
             }));
         }
 
