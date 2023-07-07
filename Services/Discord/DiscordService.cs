@@ -50,7 +50,6 @@ namespace Botifex.Services.Discord
         internal override async void OnStopping()
         {
             log.LogDebug("OnStopping has been called.");
-            await Log("Awoooooo......", LogLevel.Information);
             await DiscordClient.StopAsync();
         }
 
@@ -69,8 +68,7 @@ namespace Botifex.Services.Discord
             {
                 StatusChannel = (ITextChannel)await DiscordClient.GetChannelAsync(ulong.Parse(config.GetValue<string>("DiscordStatusChannel")!));
             }
-            await Log("Yip Yip", LogLevel.Information);
-
+            
             LoadAdminIds(config?.GetSection("DiscordAdminAllowlist").Get<string[]>());
             FinalizeFirstReady(EventArgs.Empty);
 
@@ -364,7 +362,13 @@ namespace Botifex.Services.Discord
 
             // save the old message text before replacing it
             string status = (await StatusChannel.GetMessageAsync(StatusMessageId)).Content;
-            await CreateOrUpdateStatus(text);
+            
+            // replace the old message with some text, or delete the old message if text is empty
+            // (if text is empty, this method is basically "repost the status as a new message")
+            if (!string.IsNullOrEmpty(text))
+                await CreateOrUpdateStatus(text);
+            else
+                await StatusChannel.DeleteMessageAsync(StatusMessageId);
 
             // make the new message
             StatusMessageId = 0;

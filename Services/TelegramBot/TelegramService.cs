@@ -79,8 +79,6 @@ namespace Botifex.Services.TelegramBot
 
                 IsReady = true;
                 FinalizeFirstReady(EventArgs.Empty);
-                log.LogInformation("Yip Yip");
-                //await Log($"Yip Yip", LogLevel.Information);
             }
             catch (Exception ex)
             {
@@ -90,15 +88,11 @@ namespace Botifex.Services.TelegramBot
 
         internal override /*async*/ void OnStopping()
         {
-            log.LogInformation("Awoooooo.....");
-            //await Log("Awoooooo......", LogLevel.Information);
             log.LogDebug("OnStopping has been called.");
-                        
-            IsReady = false;
         }
 
         internal override void OnStopped()
-        {
+        { 
             log.LogDebug("OnStopped has been called.");
         }
 
@@ -132,7 +126,8 @@ namespace Botifex.Services.TelegramBot
             Channel channel = channelLibrary[chat.Id];
 
             // keep groups clear of join/leave messages - TODO: make this a toggleable setting
-            if (data.Message.Type == MessageType.ChatMembersAdded || data.Message.Type == MessageType.ChatMemberLeft)
+            if (data.Message.Type == MessageType.ChatMembersAdded || data.Message.Type == MessageType.ChatMemberLeft
+                    || data.Message.Type == MessageType.MessagePinned)
             {
                 if (data.Message.Type == MessageType.ChatMembersAdded)
                     await ReplaceStatus(""); // redo status message when a new person joins

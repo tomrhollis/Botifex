@@ -4,6 +4,8 @@
     {
         string Name { get; }
 
+        string At { get; }
+
         string Id { get; }
 
         Messenger Messenger { get; }
