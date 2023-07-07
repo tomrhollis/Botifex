@@ -1,6 +1,4 @@
-﻿
-
-using Discord.WebSocket;
+﻿using Discord.WebSocket;
 
 namespace Botifex.Services.Discord
 {

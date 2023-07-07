@@ -1,6 +1,4 @@
-﻿
-
-namespace Botifex.Services.TelegramBot
+﻿namespace Botifex.Services.TelegramBot
 {
     public interface ITelegram
     {

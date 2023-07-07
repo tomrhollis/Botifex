@@ -1,7 +1,6 @@
 ﻿using Botifex.Models;
 using Botifex.Services;
 
-
 namespace Botifex
 {
     public interface IBotifex

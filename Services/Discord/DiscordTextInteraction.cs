@@ -1,7 +1,6 @@
 ﻿using Discord.WebSocket;
 
 namespace Botifex.Services.Discord
-
 {
     internal class DiscordTextInteraction : DiscordInteraction, ITextInteraction
     {

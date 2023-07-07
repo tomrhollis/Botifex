@@ -8,7 +8,6 @@ namespace Botifex.Services.Discord
         internal DiscordSocketClient DiscordClient { get; }
         internal ITextChannel? LogChannel { get; }
 
-
         internal Task OnConnect();/*
         internal Task SlashCommandHandler(SocketSlashCommand command);
 

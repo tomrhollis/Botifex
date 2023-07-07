@@ -2,7 +2,6 @@
 using Botifex.Services.Discord;
 using Botifex.Services.TelegramBot;
 
-
 namespace Botifex
 {
     public static class BotifexServiceExtensions
