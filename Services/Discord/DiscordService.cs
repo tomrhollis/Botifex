@@ -105,11 +105,7 @@ namespace Botifex.Services.Discord
 
             foreach (string username in usernames)
             {
-                if (!Regex.Match(username, "^(?!(discordtag|here|everyone)).[^\\@\\#\\:]{2,32}#[\\d]{4}$").Success)
-                    throw new ArgumentException($"{username} is not a proper Discord username");
-
-                Match splitName = Regex.Match(username, "^(.*)#(.*)$");
-                SocketUser adminUser = DiscordClient.GetUser(splitName.Groups[1].Value, splitName.Groups[2].Value);
+                SocketUser adminUser = DiscordClient.GetUser(username);
                 
                 // if discord couldn't find this user, ignore and move on                
                 if (adminUser is null)
