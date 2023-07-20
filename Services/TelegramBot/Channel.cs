@@ -94,7 +94,6 @@ namespace Botifex.Services.TelegramBot
 
         public void Send(string text, int? replyToMessageId = null, ReplyKeyboardMarkup? markup = null, bool disableNotification = false, Action<Message>? callback = null)
         {
-            text += "\n\n" + GetSleepTime();
             AddToQueue(new Task(async () =>
             {
                 Message newMessage = new Message();
