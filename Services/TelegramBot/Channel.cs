@@ -8,13 +8,17 @@ namespace Botifex.Services.TelegramBot
 {
     internal class Channel
     {
-        private static readonly int API_LIMIT = 3000; // telegram will get mad if you send more than 20 messages a minute
-                                                      // it's unclear if that's just messages or any interaction with a channel
-                                                      // erring on the safe side and queueing ALL interactions with a channel,
-                                                      // handling them once every 3 seconds
+        private static readonly int API_LIMIT_ACTIONS = 20; // telegram will get mad if you send more than 20 messages a minute
+        private static readonly int API_LIMIT_SECONDS = 60; // it's unclear if that's just messages or any interaction with a channel
+                                                            // erring on the safe side and queueing ALL interactions with a channel,
+                                                            // handling them once every 3 seconds
+        private Queue<DateTime> interactionRecord = new Queue<DateTime>();
+
+
         private ConcurrentQueue<Task> messageQueue = new();
         private Task apiWorker;
         private TelegramBotClient bot;
+
         public bool Stopping { get; set; } = false;
 
         public ChatId Id { get; private set; }
@@ -46,7 +50,7 @@ namespace Botifex.Services.TelegramBot
 
 
         /// <summary>
-        /// Empty out the queue
+        /// Work on the queue
         /// </summary>
         private void ProcessQueue()
         {
@@ -57,11 +61,27 @@ namespace Botifex.Services.TelegramBot
                 if (messageQueue.TryDequeue(out request))
                 {
                     request.Start();
-                    Thread.Sleep(API_LIMIT); // wait for the API limit before interacting with the channel again
+                    interactionRecord.Enqueue(DateTime.Now);
+                    Thread.Sleep(GetSleepTime()); // wait for the API limit before interacting with the channel again
                 }
             }
             if(!Stopping)
                 apiWorker = new Task(ProcessQueue);
+        }
+
+        /// <summary>
+        /// Adjust the sleep time to allow snappy responses in underused channels and up to twice the throttling in overused channels
+        /// </summary>
+        /// <returns>An <see cref="int"/> representing the milliseconds the thread should sleep</returns>
+        private int GetSleepTime()
+        {
+            if (interactionRecord.Count == 0) return 1;
+            
+            while (DateTime.Now.Subtract(interactionRecord.Peek()).TotalSeconds >= API_LIMIT_SECONDS)
+                interactionRecord.Dequeue();
+
+            int averageSleep = API_LIMIT_SECONDS / API_LIMIT_ACTIONS * 1000;
+            return (int)(averageSleep * ((float)interactionRecord.Count * 2.0 / (float)API_LIMIT_ACTIONS));
         }
 
         public void DoTyping()
@@ -74,6 +94,7 @@ namespace Botifex.Services.TelegramBot
 
         public void Send(string text, int? replyToMessageId = null, ReplyKeyboardMarkup? markup = null, bool disableNotification = false, Action<Message>? callback = null)
         {
+            text += "\n\n" + GetSleepTime();
             AddToQueue(new Task(async () =>
             {
                 Message newMessage = new Message();
