@@ -2,7 +2,7 @@
 
 namespace Botifex.Services.Discord
 {
-    internal abstract class DiscordInteraction : Interaction
+    public abstract class DiscordInteraction : Interaction
     {
         internal DiscordInteraction(InteractionSource source) : base(source) { }
         protected IDisposable? isTyping = null;

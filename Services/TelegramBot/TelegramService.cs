@@ -117,21 +117,50 @@ namespace Botifex.Services.TelegramBot
         private async Task OnUpdateReceived(ITelegramBotClient bot, Update data, CancellationToken cToken)
         {
             if (data.Message is null) return;
-            Chat chat = data.Message.Chat;
+
+            // handle a migration to supergroup
+            if (data.Message.Type == MessageType.MigratedToSupergroup)
+            {
+                long newId = data.Message.MigrateToChatId ?? 0; // these should not be null with this message type though
+                string channelName = "STATUS CHANNEL";
+                channelLibrary[newId] = new Channel(Bot, newId);
+
+                long oldId = StatusChannel?.Id.Identifier ?? 0;
+                StatusChannel = channelLibrary[newId];
+                channelLibrary[oldId].Stopping = true; // TODO: Channel should be Disposable
+
+                /* -- TODO: find a way to match the new chat to the old chat, since telegram's MigrateFromChatId isn't working
+                 * -- UNTIL THEN: making the bold assumption that this is only happening in the status channel
+                channelLibrary[newId] = channelLibrary[oldId].Migrate(newId);
+                
+                if (StatusChannel?.Id == oldId)
+                {
+                    StatusChannel = channelLibrary[newId];
+                    channelName = "STATUS CHANNEL";
+                }
+                else if (LogChannel?.Id == oldId)
+                {
+                    LogChannel = channelLibrary[newId];
+                    channelName = "LOG CHANNEL";
+                }
+                else
+                    channelName = data.Message.Chat.Title!;*/
+
+                await Log($"ALERT: UPDATE SETTINGS FILE!! {channelName} ID HAS CHANGED TO {newId}\n\nBot has probably lost privileges in the status channel, expect a crash soon.", LogLevel.Error);
+                return;
+            }
 
             // log the channel in the channel library if necessary
             if (!channelLibrary.Keys.Contains(data.Message.Chat.Id))
                 channelLibrary[data.Message.Chat.Id] = new Channel(Bot, data.Message.Chat.Id);
 
+            Chat chat = data.Message.Chat;
             Channel channel = channelLibrary[chat.Id];
 
             // keep groups clear of join/leave messages - TODO: make this a toggleable setting
             if (data.Message.Type == MessageType.ChatMembersAdded || data.Message.Type == MessageType.ChatMemberLeft
                     || data.Message.Type == MessageType.MessagePinned)
             {
-                if (data.Message.Type == MessageType.ChatMembersAdded)
-                    await ReplaceStatus(""); // redo status message when a new person joins
-
                 channel.Delete(data.Message.MessageId);
                 return;
             }
@@ -142,7 +171,7 @@ namespace Botifex.Services.TelegramBot
             // ignore if in a group chat and not targeted
             if (data.Message.Chat.Type != Telegram.Bot.Types.Enums.ChatType.Private
                 && data.Message.Chat.Type != Telegram.Bot.Types.Enums.ChatType.Sender
-                && !Regex.Match(data.Message.Text.ToLower(), $"@{BotUsername.ToLower()}").Success)
+                && !Regex.Match(data.Message.Text.ToLower(), $"@{BotUsername.ToLower()}(?=\\s|$)").Success)
                 return;
 
             TelegramUser user = new TelegramUser(this, data.Message.From);            

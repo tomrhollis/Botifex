@@ -143,11 +143,16 @@ namespace Botifex
         private BotifexUser CreateOrFindUser(Interaction i)
         {
             BotifexUser? user = knownUsers.FirstOrDefault(u => u.Accounts.FirstOrDefault(a=>a.Id == i.Source.User.Id) is not null);
-
-            if (user is null)
+            
+            if (user is null) // create a user
             {
                 user = new BotifexUser(i.Source.User);
                 knownUsers.Add(user);
+            }
+            else // update user info (allow for name changes)
+            {
+                int index = user.Accounts.FindIndex((a) => a.Id == i.Source.User.Id);
+                user.Accounts[index] = i.Source.User;
             }
             return user;
         }

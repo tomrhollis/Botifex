@@ -15,6 +15,7 @@ namespace Botifex.Services.TelegramBot
         private ConcurrentQueue<Task> messageQueue = new();
         private Task apiWorker;
         private TelegramBotClient bot;
+        public bool Stopping { get; set; } = false;
 
         public ChatId Id { get; private set; }
 
@@ -50,7 +51,7 @@ namespace Botifex.Services.TelegramBot
         private void ProcessQueue()
         {
             // if there's stuff in the queue and the worker is free, do the next task
-            while (messageQueue.Count > 0)
+            while (messageQueue.Count > 0 && !Stopping)
             {
                 Task request;
                 if (messageQueue.TryDequeue(out request))
@@ -59,7 +60,8 @@ namespace Botifex.Services.TelegramBot
                     Thread.Sleep(API_LIMIT); // wait for the API limit before interacting with the channel again
                 }
             }
-            apiWorker = new Task(ProcessQueue);
+            if(!Stopping)
+                apiWorker = new Task(ProcessQueue);
         }
 
         public void DoTyping()
@@ -103,7 +105,7 @@ namespace Botifex.Services.TelegramBot
                     if (callback is not null)
                         callback.Invoke(message);
                 }
-                catch (ApiRequestException)
+                catch (ApiRequestException) // in case the message was deleted, send a new one
                 {
                     Send(newText, callback: callback);
                 }
