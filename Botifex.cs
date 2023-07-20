@@ -17,6 +17,7 @@ namespace Botifex
 
         private EventHandler<InteractionReceivedEventArgs>? onCommand;
         private EventHandler<InteractionReceivedEventArgs>? onText;
+        private EventHandler<UserUpdateEventArgs>? onUserUpdate;
         private EventHandler<EventArgs>? onReady;
 
         private Messenger[] messengers;
@@ -85,6 +86,11 @@ namespace Botifex
             onReady = handler;
         }
 
+        public void RegisterUserUpdateHandler(EventHandler<UserUpdateEventArgs> handler)
+        {
+            onUserUpdate = handler;
+        }
+
         public void AddCommand(SlashCommand command)
         {
             commandLibrary.RegisterCommand(command);
@@ -142,17 +148,26 @@ namespace Botifex
 
         private BotifexUser CreateOrFindUser(Interaction i)
         {
-            BotifexUser? user = knownUsers.FirstOrDefault(u => u.Accounts.FirstOrDefault(a=>a.Id == i.Source.User.Id) is not null);
-            
+            BotifexUser? user = knownUsers.FirstOrDefault(u => u.Accounts.FirstOrDefault(a => a.Id == i.Source.User.Id) is not null);
+
             if (user is null) // create a user
             {
                 user = new BotifexUser(i.Source.User);
                 knownUsers.Add(user);
             }
-            else // update user info (allow for name changes)
+            else // update user info if necessary (allow for name changes)
             {
                 int index = user.Accounts.FindIndex((a) => a.Id == i.Source.User.Id);
-                user.Accounts[index] = i.Source.User;
+                if (user.Accounts[index].Name != i.Source.User.Name
+                    || user.Accounts[index].At != i.Source.User.At)
+                {
+                    user.Accounts[index] = i.Source.User;
+                    EventHandler<UserUpdateEventArgs>? handler = onUserUpdate;
+                    if (handler is not null)
+                    {
+                        handler(this, new UserUpdateEventArgs(user));
+                    }
+                }            
             }
             return user;
         }
@@ -179,6 +194,15 @@ namespace Botifex
             {
                 handler(this, e);
             }
+        }
+    }
+
+    public class UserUpdateEventArgs : EventArgs
+    {
+        public BotifexUser User { get; set; }
+        public UserUpdateEventArgs(BotifexUser u)
+        {
+            User = u;
         }
     }
 }
