@@ -2,10 +2,15 @@
 
 namespace Botifex
 {
+    /// <summary>
+    /// Represents a bot command that will be registered with all supported messengers
+    /// </summary>
     public class SlashCommand
     {
         private string name = String.Empty;
-        // max length 32, only digits numbers and underscore
+        /// <summary>
+        /// The name of the command. Max length 32, only digits, numbers and underscore
+        /// </summary>
         public string Name 
         { 
             get => name; 
@@ -19,7 +24,9 @@ namespace Botifex
         }
 
         private string description = String.Empty;
-        // max length 200
+        /// <summary>
+        /// The description of the command to help users. Max length 200
+        /// </summary>
         public string Description
         { 
             get => description; 
@@ -32,14 +39,19 @@ namespace Botifex
             }
         }
 
+        /// <summary>
+        /// Whether only admins should be able to use this command
+        /// </summary>
         public bool AdminOnly {get; private set;}
 
+        /// <summary>
+        /// The parameters that can be used with this command, as a <see cref="List"/> of <see cref="CommandField"/>s
+        /// </summary>
         public List<CommandField> Options { get; set; } = new List<CommandField>();
 
         public SlashCommand(bool adminOnly=false)
         {
             AdminOnly = adminOnly;
         }
-
     }
 }

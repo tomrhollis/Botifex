@@ -12,7 +12,5 @@ namespace Botifex.Services.TelegramBot
             initialMessage = (Message?)source.Message;
             
         }
-
-
     }
 }

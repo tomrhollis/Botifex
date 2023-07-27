@@ -2,6 +2,9 @@
 
 namespace Botifex.Services.TelegramBot
 {
+    /// <summary>
+    /// Represents a user account from the Telegram service
+    /// </summary>
     internal class TelegramUser : IMessengerUser
     {
         internal User Account { get; private set; }
@@ -10,6 +13,7 @@ namespace Botifex.Services.TelegramBot
 
         public string At { get => "@"+(Account.Username ?? String.Empty); }
         public string Id { get => Account.Id.ToString(); }
+
         internal TelegramUser(TelegramService telegram, User user)
         {
             Account = user;

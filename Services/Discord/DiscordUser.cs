@@ -2,6 +2,9 @@
 
 namespace Botifex.Services.Discord
 {
+    /// <summary>
+    /// Represents a user account from the Discord service
+    /// </summary>
     internal class DiscordUser : IMessengerUser
     {
         internal SocketUser Account { get; private set; }
